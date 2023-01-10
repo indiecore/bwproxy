@@ -1,4 +1,4 @@
-from typing import Tuple, List, Match, Union, Optional, TypeVar
+from typing import Tuple, List, Match, Union, Optional, overload
 from PIL import Image, ImageDraw, ImageFont, ImageColor
 from tqdm import tqdm
 import os
@@ -28,12 +28,17 @@ def replFunction(m: Match[str]):
     return t
 
 
-S = TypeVar("S", str, None)
+@overload
+def printSymbols(text: str) -> str:
+    ...
+@overload
+def printSymbols(text: None) -> None:
+    ...
 
-
-def printSymbols(text: S) -> S:
+def printSymbols(text: Optional[str]) -> Optional[str]:
     """
     Substitutes all {abbreviation} in text with the corresponding code points
+    These code points, when written in the program fonts, correspond to the MTG Symbols
     """
     if text is None:
         return text
@@ -47,6 +52,8 @@ def fitOneLine(fontPath: str, text: str, maxWidth: int, fontSize: int):
     Function that tries to fit one line of text in the specified width.
     It starts with the specified font size, and if the text is too long
     it reduces the font size by one and tries again.
+    This is used to determine the font size for several card components,
+    including title, Mana cost, and type line
     """
     font = ImageFont.truetype(fontPath, fontSize)
     while font.getsize(text)[0] > maxWidth:
@@ -62,6 +69,7 @@ def fitMultiLine(
     Recursive function that tries to fit multiple lines of text in the specified box.
     It starts with the specified font size, chops the text based on the max width,
     and if the text overflows vertically it reduces the font size by one and tries again.
+    This is mainly used to determine font size for rules box.
     """
     # the terminology here gets weird so to simplify:
     # a rule is a single line of oracle text.
@@ -271,16 +279,16 @@ def coloredTemplateSimple(card: Card, size: XY) -> Image.Image:
     imgColors = []
     if len(colors) == 0:
         multicolor = False
-        imgColor = ImageColor.getrgb(C.FRAME_COLORS["C"])
+        imgColor = ImageColor.getrgb(C.FRAME_COLORS[C.MTG_COLORLESS])
     elif len(colors) == 1:
         multicolor = False
         imgColor = ImageColor.getrgb(C.FRAME_COLORS[colors[0]])
     elif len(colors) == 5:
         multicolor = False
-        imgColor = ImageColor.getrgb(C.FRAME_COLORS["M"])
+        imgColor = ImageColor.getrgb(C.FRAME_COLORS[C.MTG_MULTICOLOR])
     else:
         multicolor = True
-        imgColor = ImageColor.getrgb(C.FRAME_COLORS["M"])
+        imgColor = ImageColor.getrgb(C.FRAME_COLORS[C.MTG_MULTICOLOR])
         imgColors = [ImageColor.getrgb(C.FRAME_COLORS[c]) for c in colors]
 
     if not multicolor:
@@ -432,6 +440,10 @@ def pasteSetIcon(
 
 
 def drawIllustrationSymbol(card: Card, image: Image.Image) -> Image.Image:
+    """
+    Emblems and basic lands have a backdrop on the card:
+    For land is the corresponding mana symbol, for emblems is the planeswalker symbol.
+    """
 
     if card.isBasicLand():
         illustrationSymbolName = card.name.split()[-1]
@@ -465,6 +477,9 @@ def drawText(
     hasSetIcon: bool = True,
     alternativeFrames: bool = False,
 ) -> Image.Image:
+    """
+    This function collects all functions writing text to a card
+    """
 
     if card.isTwoParts():
         faces = card.card_faces
@@ -473,6 +488,7 @@ def drawText(
 
     for face in faces:
         if face.face_type == C.ADV and face.face_num == 1:
+            # This is the adventure side for a card
             hasSetIcon = False
         image = drawTitleLine(
             card=face,
@@ -480,7 +496,7 @@ def drawText(
             flavorNames=flavorNames,
             alternativeFrames=alternativeFrames,
         )
-        if not fullArtLands:
+        if (face.isBasicLand() or face.isEmblem()) and not fullArtLands:
             image = drawIllustrationSymbol(card=card, image=image)
         image = drawTypeLine(
             card=face,
@@ -494,10 +510,12 @@ def drawText(
             useTextSymbols=useTextSymbols,
             alternativeFrames=alternativeFrames,
         )
-        image = drawPTL(card=face, image=image, alternativeFrames=alternativeFrames)
+        if face.hasPTL():
+            image = drawPTL(card=face, image=image, alternativeFrames=alternativeFrames)
         image = drawOther(card=face, image=image, alternativeFrames=alternativeFrames)
 
-    image = drawFuseText(card=card, image=image)
+    if card.layout == C.FUSE:
+        image = drawFuseText(card=card, image=image)
 
     return image
 
@@ -578,11 +596,15 @@ def drawTitleLine(
 
     displayName = flavorNames[card.name] if card.name in flavorNames else card.name
 
-    # Section for card indicator at left of the name (dfc and flip)
+    # Section for card indicator at left of the name: dfc, flip
     # It is separated from title because we want it always at max size
-    if card.face_type in C.DFC_LAYOUTS or card.face_type == C.FLIP:
-        faceSymbolFont = ImageFont.truetype(C.SERIF_FONT, size=C.TITLE_FONT_SIZE)
+    if (
+        card.face_type in C.DFC_LAYOUTS
+        or card.face_type == C.FLIP
+    ):
         faceSymbol = f"{C.FONT_CODE_POINT[card.face_symbol]} "
+
+        faceSymbolFont = ImageFont.truetype(C.SERIF_FONT, size=C.TITLE_FONT_SIZE)
         pen.text(
             (
                 alignNameLeft,
@@ -601,6 +623,8 @@ def drawTitleLine(
         faceSymbolSpace = faceSymbolFont.getsize(faceSymbol)[0]
         alignNameLeft += faceSymbolSpace
         maxNameWidth -= faceSymbolSpace
+
+    # Here the indicator section is finished, we now write the card name
 
     nameFont = fitOneLine(
         fontPath=C.SERIF_FONT,
@@ -624,8 +648,9 @@ def drawTitleLine(
         anchor=alignNameAnchor,
     )
 
-    # Writing oracle name, if card has also a flavor name
+    # Writing oracle name, if card has also a flavor name.
     # Card name goes at the top of the illustration, centered.
+    # We exclude composite layouts because I could not care less
     if card.name in flavorNames and card.face_type not in [
         C.SPLIT,
         C.FUSE,
@@ -714,8 +739,10 @@ def drawTextBox(
     alternativeFrames: bool = False,
 ) -> Image.Image:
     """
-    Draw rules text box.
-    Adding a rule for color indicator, if present
+    Draw rules text box, replacing any curly braces plaintext
+    with the corresponding symbol (unless specified).
+    If there is a colour indicator, we also spell it out
+    (it does not translate well into a black/white proxy)
     """
 
     if card.isBasicLand():
@@ -776,6 +803,9 @@ def drawTextBox(
 
 
 def drawFuseText(card: Card, image: Image.Image) -> Image.Image:
+    """
+    Fuse card have an horizontal line spanning both halves of the card
+    """
     if not card.layout == C.FUSE:
         return image
 

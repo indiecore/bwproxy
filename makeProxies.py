@@ -1,8 +1,9 @@
 from __future__ import annotations
-from typing import Dict, List, Optional
-from scrython import Named, Search, ScryfallError
+from typing import Optional
+from scrython import Search, ScryfallError
 from PIL import Image
 from tqdm import tqdm
+from pathlib import Path
 import pickle
 import re
 import os
@@ -13,54 +14,77 @@ import bwproxy.projectConstants as C
 from bwproxy.projectTypes import Card, Deck, Flavor
 
 
-def disambiguateTokenResults(query: str, results: List[Card]) -> List[Card]:
-    singleFaced: List[Card] = []
-    disambiguated: Dict[str, Card] = {}
+def deduplicateTokenResults(query: str, results: list[Card]) -> list[Card]:
+    """
+    Removes duplicates from a list of tokens / emblems.
+    Considers name, types, colors, rules text and p/t
+    when searching for duplicates.
+    """
+    singleFaces: list[Card] = []
+    deduplicatedList: dict[str, Card] = {}
     for card in results:
-        try:
-            singleFaced.extend(card.card_faces)
-        except:
-            singleFaced.append(card)
-    for card in singleFaced:
+        # If a token has multiple faces, insert them all
+        if card.isTwoParts():
+            singleFaces.extend(card.card_faces)
+        else:
+            singleFaces.append(card)
+    for card in singleFaces:
         if (
+            # There probably is a reason for replacing commas, but I don't remember it
             query.lower().replace(",", "") in card.name.lower().replace(",", "")
             and card.type_line != "Token"
             and card.type_line != ""
         ):
             index = f"{card.name}\n{card.type_line}\n{sorted(card.colors)}\n{card.oracle_text}"
+            # There are multiple tokens which differ only by power/toughness
+            # So we have to include this info when deduplicating
             if card.hasPT():
                 index += f"\n{card.power}/{card.toughness}"
-            disambiguated[index] = card
+            deduplicatedList[index] = card
 
-    return list(disambiguated.values())
+    return list(deduplicatedList.values())
 
 
-def searchToken(tokenName: str, tokenType: str = C.TOKEN) -> List[Card]:
+def searchToken(tokenName: str, tokenType: str = C.TOKEN) -> list[Card]:
+    """
+    Searches a token/emblem info based on their name.
+    Returns a list of deduplicated tokens corresponding to the name,
+    or the empty list if no tokens were found.
+    """
     if tokenType == C.EMBLEM:
         exactName = f"{tokenName} Emblem"
     else:
         exactName = tokenName
     try:
-        cardQuery = Search(q=f"type:{tokenType} !'{exactName}")
+        cardQuery = Search(q=f"type:{tokenType} !'{exactName}'")
         results = [Card(cardData) for cardData in cardQuery.data()]  # type: ignore
     except ScryfallError:
         try:
             cardQuery = Search(q=f"type:{tokenType} {tokenName}")
             results = [Card(cardData) for cardData in cardQuery.data()]  # type: ignore
         except ScryfallError:
-            results: List[Card] = []
-    return disambiguateTokenResults(query=tokenName, results=results)
+            results: list[Card] = []
+    return deduplicateTokenResults(query=tokenName, results=results)
 
 
 def parseToken(text: str, name: Optional[str] = None) -> Card:
+    """
+    Parse token data from input
+    """
+    # We split the input line into a list,
+    # then keep popping the fields one by one
+    # in order to manage the optional fields
     data = [line.strip() for line in text.split(";")]
 
-    if data[0].lower() == "legendary":
-        supertype = "Legendary "
+    # Optional field
+    supertypesList = [word.strip().title() for word in data[0].split()]
+    if len(supertypesList) > 0 and set(supertypesList) <= set(C.CARD_SUPERTYPES):
+        supertype = " ".join(supertypesList) + " "
         data.pop(0)
     else:
         supertype = ""
 
+    # Optional field
     if "/" in data[0].lower():
         pt = data[0].split("/")
         power = pt[0]
@@ -70,22 +94,32 @@ def parseToken(text: str, name: Optional[str] = None) -> Card:
         power = None
         toughness = None
 
-    colors = [color for color in data.pop(0) if color != "C"]
-    subtypesString = data.pop(0)
+    colors = [color for color in data.pop(0).upper() if color != C.MTG_COLORLESS]
 
-    possibleTypes = [word.strip().title() for word in data[0].split()]
-    if set(possibleTypes) <= set(C.CARD_TYPES):
-        # There are subtypes
-        types = f"{supertype}{' '.join(possibleTypes)}"
+    typesOrSubtypesList = [word.strip().title() for word in data[0].split()]
+    maybeTypesList = [word.strip().title() for word in data[1].split()]
+
+    if set(maybeTypesList) <= set(C.CARD_TYPES) | set(C.CARD_SUPERTYPES):
+        # Since maybeTypesList contains types
+        # (and not the next info in the token specification),
+        # we can deduce that typesOrSubTypesList contains subtypes
+        # We cannot check directly on the subtypes field,
+        # since there are too many, they change frequently and
+        # I don't want to search for a list
+
+        # We delete subtypes and types from the data
         data.pop(0)
-        subtypes = " ".join([t.strip().title() for t in subtypesString.split()])
+        data.pop(0)
+
+        types = f"{supertype}{' '.join(maybeTypesList)}"
+        subtypes = " ".join(typesOrSubtypesList)
         name = name if name else subtypes
         type_line = f"Token {types} — {subtypes}"
     else:
-        # No subtypes
-        typesString = subtypesString
-        possibleTypes = [word.strip().title() for word in typesString.split()]
-        type_line = f"Token {supertype}{' '.join(possibleTypes)}"
+        # Since maybeTypesList does not contain types, the token info contains no subtypes
+        # This means that the card types are in typesOrSubtypesList
+        data.pop(0)
+        type_line = f"Token {supertype}{' '.join(typesOrSubtypesList)}"
 
     if name is None:
         raise Exception(f"Missing name for token without subtypes: {text}")
@@ -98,6 +132,7 @@ def parseToken(text: str, name: Optional[str] = None) -> Card:
         "mana_cost": "",
     }
 
+    # Creatures and vehicles should have P/T
     if "Creature" in jsonData["type_line"] or "Vehicle" in jsonData["type_line"]:
         try:
             assert power is not None
@@ -113,11 +148,18 @@ def parseToken(text: str, name: Optional[str] = None) -> Card:
 
 
 def loadCards(
-    fileLoc: str, ignoreBasicLands: bool = False, alternativeFrames: bool = False
+    fileLoc: Path | None = None,
+    requestedCards: str | None = None,
+    ignoreBasicLands: bool = False,
+    alternativeFrames: bool = False
 ) -> tuple[Deck, Flavor]:
+    """
+    Search the requested cards' data. The requested data can be specified
+    via file or via plaintext string
+    """
 
-    cardCache: Dict[str, Card]
-    tokenCache: Dict[str, Card]
+    cardCache: dict[str, Card]
+    tokenCache: dict[str, Card]
 
     if os.path.exists(C.CACHE_LOC):
         with open(C.CACHE_LOC, "rb") as p:
@@ -131,111 +173,130 @@ def loadCards(
     else:
         tokenCache = {}
 
-    with open(fileLoc) as f:
-        cardsInDeck: Deck = []
-        flavorNames: Flavor = {}
+    if fileLoc is not None:
+        with open(fileLoc) as f:
+            requestedCards = f.read()
+        
+    if requestedCards is None or requestedCards == "":
+        raise ValueError("Missing file location and requested cards plaintext info")
 
-        tokenEmblemRegex = re.compile(r"^(?:\d+x )?\((token|emblem)\)", flags=re.I)
-        if tokenEmblemRegex:
-            pass
-        doubleSpacesRegex = re.compile(r" {2,}")
-        removeCommentsRegex = re.compile(r"^//.*$|#.*$")
-        cardCountRegex = re.compile(r"^([0-9]+)x?")
-        flavorNameRegex = re.compile(r"\[(.*?)\]")
-        cardNameRegex = re.compile(
-            r"^(?:\d+x? )?(?:\((?:token|emblem)\) )?(.*?)(?: \[.*?\])?$", flags=re.I
-        )
+    cardsInDeck: Deck = []
+    flavorNames: Flavor = {}
 
-        for line in f:
-            line = removeCommentsRegex.sub("", line)
-            line = doubleSpacesRegex.sub(" ", line.strip())
+    # This regex searches for // at the beginning of the line,
+    # or for # at any point in the line
+    removeCommentsRegex = re.compile(r"^//.*$|#.*$")
+    # This regex searches for two or more spaces consecutively
+    doubleSpacesRegex = re.compile(r" {2,}")
+    # This regex searches for any number of digits at the beginning of the line,
+    # Eventually followed by a question mark
+    # The digits are saved into the first capturing group
+    cardCountRegex = re.compile(r"^([0-9]+)x?")
+    # This regex searches (case insensitive) for (token) or (emblem) at the beginning
+    # Eventually preceded by the card count section
+    # Token or Emblem is saved into the first capturing group
+    tokenEmblemRegex = re.compile(r"^(?:[0-9]+x? )?\((token|emblem)\)", flags=re.I)
+    # This regex searches for any section between square brackets
+    # This should be the flavor name of the card
+    # The flavor name is saved into the first capturing group
+    flavorNameRegex = re.compile(r"\[(.*?)\]")
+    # This regex excludes all other sections and saves the remaining info
+    # (hopefully the card name) in the first capturing group
+    cardNameRegex = re.compile(
+        r"^(?:[0-9]+x? )?(?:\((?:token|emblem)\) )?(.*?)(?: \[.*?\])?$", flags=re.I
+    )
 
-            if line == "":
-                continue
+    for line in requestedCards.split("\n"):
+        line = removeCommentsRegex.sub("", line)
+        line = doubleSpacesRegex.sub(" ", line.strip())
 
-            cardCountMatch = cardCountRegex.search(line)
-            cardCount = int(cardCountMatch.groups()[0]) if cardCountMatch else 1
+        if line == "":
+            continue
 
-            flavorNameMatch = flavorNameRegex.search(line)
-            cardNameMatch = cardNameRegex.search(line)
-            tokenMatch = tokenEmblemRegex.search(line)
+        cardCountMatch = cardCountRegex.search(line)
+        cardCount = int(cardCountMatch.groups()[0]) if cardCountMatch else 1
 
-            if cardNameMatch:
-                cardName = cardNameMatch.groups()[0]
-            else:
-                raise Exception(f"No card name found in line {line}")
+        flavorNameMatch = flavorNameRegex.search(line)
+        cardNameMatch = cardNameRegex.search(line)
+        tokenMatch = tokenEmblemRegex.search(line)
 
-            if ignoreBasicLands and cardName in C.BASIC_LANDS:
-                print(
-                    f"You have requested to ignore basic lands. {cardName} will not be printed."
-                )
-                continue
+        if cardNameMatch:
+            cardName = cardNameMatch.groups()[0]
+        else:
+            raise Exception(f"No card name found in line {line}")
 
-            if tokenMatch:
-                tokenType = tokenMatch.groups()[0].lower()
-                if ";" in cardName:
-                    if flavorNameMatch:
-                        tokenName = flavorNameMatch.groups()[0]
-                    else:
-                        tokenName = None
-                    tokenData = parseToken(text=cardName, name=tokenName)
-                elif cardName in tokenCache:
-                    tokenData = tokenCache[cardName]
+        if ignoreBasicLands and cardName in C.BASIC_LANDS:
+            print(
+                f"You have requested to ignore basic lands. {cardName} will not be printed."
+            )
+            continue
+
+        if tokenMatch:
+            tokenType = tokenMatch.groups()[0].lower()
+            if ";" in cardName:
+                if flavorNameMatch:
+                    tokenName = flavorNameMatch.groups()[0]
                 else:
-                    print(f"{cardName} not in cache. searching...")
-                    tokenList = searchToken(tokenName=cardName, tokenType=tokenType)
-
-                    if len(tokenList) == 0:
-                        print(f"Skipping {cardName}. No corresponding tokens found")
-                        continue
-                    if len(tokenList) > 1:
-                        print(
-                            f"Skipping {cardName}. Too many tokens found. Consider specifying the token info in the input file"
-                        )
-                        continue
-                    tokenData = tokenList[0]
-
-                tokenCache[cardName] = tokenData
-                for _ in range(cardCount):
-                    cardsInDeck.append(tokenData)
-                continue
-
-            if cardName in cardCache:
-                cardData = cardCache[cardName]
+                    tokenName = None
+                tokenData = parseToken(text=cardName, name=tokenName)
+            elif cardName in tokenCache:
+                tokenData = tokenCache[cardName]
             else:
                 print(f"{cardName} not in cache. searching...")
-                try:
-                    cardData: Card = Card(Named(fuzzy=cardName))
-                except ScryfallError as err:
-                    print(f"Skipping {cardName}. {err}")
+                tokenList = searchToken(tokenName=cardName, tokenType=tokenType)
+
+                if len(tokenList) == 0:
+                    print(f"Skipping {cardName}. No corresponding tokens found")
                     continue
+                if len(tokenList) > 1:
+                    print(
+                        f"Skipping {cardName}. Too many tokens found. Consider specifying the token info in the input file"
+                    )
+                    continue
+                tokenData = tokenList[0]
 
-                print(f"Card found! {cardData.name}")
-                cardCache[cardName] = cardData
+            tokenCache[cardName] = tokenData
+            for _ in range(cardCount):
+                cardsInDeck.append(tokenData)
+            continue
 
-            if ignoreBasicLands and cardData.name in C.BASIC_LANDS:
-                print(
-                    f"You have requested to ignore basic lands. {cardName} will not be printed."
-                )
+        if cardName in cardCache:
+            cardData = Card(cardCache[cardName])
+            cardCache[cardName] = cardData
+        else:
+            print(f"{cardName} not in cache. searching...")
+            try:
+                cardData: Card = Card(name=cardName)
+            except ScryfallError as err:
+                print(f"Skipping {cardName}. {err}")
                 continue
 
-            if cardData.hasFlavorName():
-                flavorNames[cardData.name] = cardData.flavor_name
+            print(f"Card found! {cardData.name}")
+            cardCache[cardName] = cardData
 
-            if flavorNameMatch:
-                flavorName = flavorNameMatch.groups()[0]
-                flavorNames[cardData.name] = flavorName
+        if ignoreBasicLands and cardData.name in C.BASIC_LANDS:
+            print(
+                f"You have requested to ignore basic lands. {cardName} will not be printed."
+            )
+            continue
 
-            if cardData.layout in C.DFC_LAYOUTS or (
-                cardData.layout == C.FLIP and alternativeFrames
-            ):
-                facesData = cardData.card_faces
-                for _ in range(cardCount):
-                    cardsInDeck.append(facesData[0])
-                    cardsInDeck.append(facesData[1])
-            else:
-                for _ in range(cardCount):
-                    cardsInDeck.append(cardData)
+        if cardData.hasFlavorName():
+            flavorNames[cardData.name] = cardData.flavor_name
+
+        if flavorNameMatch:
+            flavorName = flavorNameMatch.groups()[0]
+            flavorNames[cardData.name] = flavorName
+
+        if cardData.layout in C.DFC_LAYOUTS or (
+            cardData.layout == C.FLIP and alternativeFrames
+        ):
+            facesData = cardData.card_faces
+            for _ in range(cardCount):
+                cardsInDeck.append(facesData[0])
+                cardsInDeck.append(facesData[1])
+        else:
+            for _ in range(cardCount):
+                cardsInDeck.append(cardData)
 
     os.makedirs(os.path.dirname(C.CACHE_LOC), exist_ok=True)
     with open(C.CACHE_LOC, "wb") as p:
@@ -316,19 +377,20 @@ if __name__ == "__main__":
 
     args = parser.parse_args()
 
-    decklistPath: str = args.decklistPath
+    decklistPath: Path = Path(args.decklistPath)
 
-    deckName = decklistPath.split("/")[-1].split("\\")[-1].split(".")[0]
+    deckName = decklistPath.name
     if args.setIconPath:
         setIcon = drawUtil.resizeSetIcon(Image.open(args.setIconPath).convert("RGBA"))
     else:
         setIcon = None
 
     allCards, flavorNames = loadCards(
-        decklistPath,
+        fileLoc=decklistPath,
         ignoreBasicLands=args.ignoreBasicLands,
         alternativeFrames=args.alternativeFrames,
     )
+    
     images = [
         drawUtil.drawCard(
             card=card,
@@ -338,8 +400,7 @@ if __name__ == "__main__":
             useTextSymbols=args.useTextSymbols,
             fullArtLands=args.fullArtLands,
             alternativeFrames=args.alternativeFrames,
-        )
-        for card in tqdm(
+        ) for card in tqdm(
             allCards,
             desc="Card drawing progress: ",
             unit="card",

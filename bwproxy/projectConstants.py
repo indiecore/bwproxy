@@ -13,9 +13,9 @@ from typing import (
 )
 from typing_extensions import Self
 
-VERSION = "v2.1"
+VERSION: str = "v2.1"
 # 0x23F is the paintbrush symbol
-CREDITS = chr(0x23F) + " https://a11ce.com/bwproxy"
+CREDITS: str = chr(0x23F) + " https://a11ce.com/bwproxy"
 
 # Helper classes and functions
 
@@ -93,6 +93,7 @@ class XY(Tuple[int, int]):
 
 Box = Tuple[XY, XY]
 Layout = Map[Map[int]]
+JsonDict = Dict[str, Any]
 
 # File locations
 
@@ -120,6 +121,16 @@ FRAME_COLORS = {
     "default": "#000000",
 }
 
+CARD_SUPERTYPES = [
+    "Basic",
+    "Legendary",
+    "Snow",
+    "World",
+    "Ongoing",
+    "Elite",
+    "Host",
+]
+
 CARD_TYPES = [
     "Land",
     "Creature",
@@ -129,10 +140,6 @@ CARD_TYPES = [
     "Sorcery",
     "Planeswalker",
     "Tribal",
-    "Basic",
-    "Legendary",
-    "Snow",
-    "World",
 ]
 
 BASIC_LANDS_NONSNOW = ["Plains", "Island", "Swamp", "Mountain", "Forest", "Wastes"]
@@ -144,6 +151,8 @@ MANA_SYMBOLS: List[MTG_COLORS] = ["W", "U", "B", "R", "G"]
 # Can be obtained programmatically, but that's more concise
 HYBRID_SYMBOLS = ["W/U", "U/B", "B/R", "R/G", "G/W", "W/B", "U/R", "B/G", "R/W", "G/U"]
 COLOR_NAMES = {"W": "white", "U": "blue", "B": "black", "R": "red", "G": "green"}
+MTG_COLORLESS: str = "C"
+MTG_MULTICOLOR: str = "M"
 
 # Layout types
 STD = "standard"
@@ -276,7 +285,12 @@ def calcLayoutData(
     which is specified at the end.
     """
     layout = Map[Map[int]](
-        BORDER=Map[int](TITLE=0, BOTTOM=bottom, LEFT=left, RIGHT=right),
+        BORDER=Map[int](
+            TITLE=0,
+            BOTTOM=bottom,
+            LEFT=left,
+            RIGHT=right
+        ),
         SIZE=Map[int](
             TITLE=90,
             TYPE_LINE=50,
