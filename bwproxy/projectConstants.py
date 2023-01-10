@@ -13,7 +13,7 @@ from typing import (
 )
 from typing_extensions import Self
 
-VERSION: str = "v2.1"
+VERSION: str = "v2.2"
 # 0x23F is the paintbrush symbol
 CREDITS: str = chr(0x23F) + " https://a11ce.com/bwproxy"
 
@@ -103,8 +103,8 @@ CACHE_LOC = "cardcache/cardcache.p"
 TOKEN_CACHE_LOC = "cardcache/tokencache.p"
 BACK_CARD_SYMBOLS_LOC = "symbols"
 
-SERIF_FONT = "fonts/matrixb.ttf"
-MONOSPACE_FONT = "fonts/MPLANTIN.ttf"
+TITLE_FONT = "fonts/title_font.ttf"
+RULES_FONT = "fonts/rules_font.ttf"
 
 # MTG constants: colors, basic lands, color names...
 
@@ -166,9 +166,12 @@ TOKEN = "token"
 EMBLEM = "emblem"
 TDFC = "transform"
 MDFC = "modal_dfc"
+ATTRACTION = "attraction"
 
 DFC_LAYOUTS = [TDFC, MDFC]
 TWO_PARTS_LAYOUTS = [SPLIT, FUSE, AFTER, ADV, FLIP]
+
+ACORN_PLAINTEXT = "{ACORN}"
 
 # FONT_CODE_POINT includes the symbols used in the card text and mana cost.
 # Those were added manually to the font file at the specified unicode point
@@ -191,13 +194,17 @@ FONT_CODE_POINT["{S}"] = chr(0x21E)  # Snow Mana
 FONT_CODE_POINT["{C}"] = chr(0x21F)  # Colorless Mana
 FONT_CODE_POINT["{P}"] = chr(0x22F)  # Standard Phyrexian Mana
 FONT_CODE_POINT["{E}"] = chr(0x23A)  # Energy Counter
+FONT_CODE_POINT["{TK}"] = chr(0x23B) # Ticket Counter (from Unfinity)
 FONT_CODE_POINT[f"{{{MDFC}_FRONT}}"] = chr(0x21A)
 FONT_CODE_POINT[f"{{{MDFC}_BACK}}"] = chr(0x21B)
 FONT_CODE_POINT[f"{{{TDFC}_FRONT}}"] = chr(0x21C)
 FONT_CODE_POINT[f"{{{TDFC}_BACK}}"] = chr(0x21D)
 FONT_CODE_POINT[f"{{{FLIP}_FRONT}}"] = chr(0x218)  # Tap
 FONT_CODE_POINT[f"{{{FLIP}_BACK}}"] = chr(0x219)  # Untap
+FONT_CODE_POINT[ACORN_PLAINTEXT] = chr(0x23C) # Acorn Symbol
 FONT_CODE_POINT["{PAINTBRUSH}"] = chr(0x23F)  # Paintbrush Symbol
+
+ATTRACTION_LINE = "\n".join([chr(0x261 + i) for i in range(6)])
 
 TODO = """
 Class, Sagas and Leveler frames?
@@ -238,9 +245,11 @@ CARD_DISTANCE = 20
 # Desired distance in pixels between elements inside the card, e.g. between card border and title
 BORDER = 15
 
-TITLE_FONT_SIZE = 70
+TITLE_FONT_SIZE = 60
 TYPE_FONT_SIZE = 50
 TEXT_FONT_SIZE = 40
+ATTRACTION_FONT_SIZE = 80
+ATTRACTION_PIXELS_BETWEEN_LINES = 15
 OTHER_FONT_SIZE = 25
 SET_ICON_SIZE = 40
 ILLUSTRATION_SIZE = 600
@@ -283,6 +292,7 @@ def calcLayoutData(
     between the two halves of the card
     - Fuse cards have another section (the fuse box),
     which is specified at the end.
+    - Attractions have a box for numbers on the right
     """
     layout = Map[Map[int]](
         BORDER=Map[int](
@@ -339,6 +349,10 @@ def calcLayoutData(
 
     layout.FONT_MIDDLE.PTL_H = layout.BORDER.PTL_BOX_LEFT + layout.SIZE.PTL_BOX_H // 2
     layout.FONT_MIDDLE.PTL_V = layout.BORDER.PTL_BOX_TOP + layout.SIZE.PTL_BOX_V // 2
+
+    if layoutType == ATTRACTION:
+        layout.SIZE.ATTRACTION_SECTION_H = 100
+        layout.BORDER.ATTRACTION_SECTION_H = layout.BORDER.RIGHT - layout.SIZE.ATTRACTION_SECTION_H
 
     if layoutType == SPLIT:
         layout.SIZE.FUSE = 50
@@ -418,6 +432,10 @@ FLIP_LAYOUT = calcLayoutData(
 FLIP_SET_ICON_POSITION = calcIconPosition(layout=FLIP_LAYOUT)
 
 
+# Attraction cards layout (normal cards, but with attraction line)
+ATTRACTION_LAYOUT = calcLayoutData(layoutType=ATTRACTION, rulesBoxSize=500)
+
+
 # Textless land layout
 LAND_LAYOUT = calcLayoutData(layoutType=LAND, rulesBoxSize=0)
 LAND_SET_ICON_POSITION = calcIconPosition(layout=LAND_LAYOUT)
@@ -443,6 +461,7 @@ LAYOUTS: DefaultDict[str, List[Layout]] = defaultdict(
         AFTER: [AFTERMATH_LAYOUT, SPLIT_LAYOUT_RIGHT],
         FLIP: [FLIP_LAYOUT, FLIP_LAYOUT],
         ADV: [STD_LAYOUT, ADVENTURE_LAYOUT],
+        ATTRACTION: [ATTRACTION_LAYOUT],
         LAND: [LAND_LAYOUT],
         TOKEN: [TOKEN_LAYOUT],
         EMBLEM: [EMBLEM_LAYOUT],

@@ -28,7 +28,7 @@ If something doesn't work, please [open an issue on GitHub](https://github.com/a
     - A line will also be considered a comment (and thus it will be ignored) if it *starts* with `//`;
     - If the card is a modal or transforming double-faced card, both faces will be printed: you don't need to list both. Meld cards still need to be included separately;
     - If you're searching for a flavor name (for example **Godzilla, King of the Monsters**), the flavor name will appear on the title, and the Oracle name will appear under the title;
-    - Optionally, you can put a custom flavor name in square brackets after a card name. It will appear like the official flavor names. Custom flavor names currently are not supported for any non-standard card frames, including Double-faced, Adventure and Flip cards
+    - Optionally, you can put a custom flavor name in square brackets after a card name. It will appear like the official flavor names. Custom flavor names currently are only supported for standard card frames, meaning that (e.g.) Double-faced, Adventure or Flip cards won't have flavor names even if specified.
     - If you want aesthetic consistency (or to play with just paper cards), you can also generate basic land cards. They will be printed with a big mana symbol, but there is an option to remove the symbol and leave them as blank full-art lands, useful for testing a deck without sleeving. It's also the best option for customisation!
 1. Optionally, put a grayscale/transparent png in `icons/`. You can use this in place of a set icon to indicate what cube or deck the cards are part of;
 1. Run `python3 makeProxies.py [options] input/yourDeck.txt`. The options are listed below:
@@ -40,7 +40,8 @@ If something doesn't work, please [open an issue on GitHub](https://github.com/a
     - Add `--no-card-space` to print the cards without blank space between them.
     - Add `--full-art-lands` to print basic lands without the big mana symbol.
     - Add `--ignore-basic-lands` to ignore basic lands when generating proxies.
-    - Add `--alternative-frames` to print flip cards as if they were double-faced cards and aftermath cards as if they were split cards.
+    - Add `--alternative-frames` to print flip cards (the ones from Kamigawa) as if they were double-faced cards and aftermath cards as if they were split cards.
+    - Add `--no-acorn-stamp` to print non-tournament legal cards without an acorn symbol near their name. This can be useful for Planechase Planes or Archenemy Schemes, or if you just don't like the symbol.
 1. Print each page in `pages/yourDeck/` at full size and cut just outside the border of each card.
 
 ## Add tokens and emblems
@@ -53,7 +54,7 @@ If something doesn't work, please [open an issue on GitHub](https://github.com/a
     - The format is `(token) Legendary; P/T; colors; Subtypes; Types; text rule 1; text rule 2; ... [Custom Name]`. This should (mostly) respect the order in which the attributes are listed on the token-making card;
     - Spacing around the semicolon does not matter;
     - If a token does not have subtypes or Power/Toughness, or is not Legendary, skip the field;
-    - The color should be given as a sequence of official abbreviations: `W` for White, `U` for Blue, `B` for Black, `R` for Red, `G` for Green. Colorless can be either an empty field or `C`. These letters **must** be uppercase;
+    - The color should be given as a sequence of official abbreviations: `W` for White, `U` for Blue, `B` for Black, `R` for Red, `G` for Green. Colorless can be either an empty field or `C`;
     - To insert symbols in the token text, enclose the symbol abbreviation in braces: two generic mana is `{2}`, tap is `{T}`, etc;
     - If a token does not have a custom name, the subtypes will be used;
     - Here are some examples:

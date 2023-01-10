@@ -57,7 +57,7 @@ def fitOneLine(fontPath: str, text: str, maxWidth: int, fontSize: int):
     """
     font = ImageFont.truetype(fontPath, fontSize)
     while font.getsize(text)[0] > maxWidth:
-        fontSize -= 1
+        fontSize -= 3
         font = ImageFont.truetype(fontPath, fontSize)
     return font
 
@@ -94,7 +94,7 @@ def fitMultiLine(
     fmtText = "\n\n".join(fmtRules)
 
     if font.getsize(fmtText)[1] * len(fmtText.split("\n")) > maxHeight:
-        return fitMultiLine(fontPath, cardText, maxWidth, maxHeight, fontSize - 1)
+        return fitMultiLine(fontPath, cardText, maxWidth, maxHeight, fontSize - 3)
     else:
         return (fmtText, font)
 
@@ -226,6 +226,17 @@ def makeFrame(
                 outline=DEF_BORDER_COLOR,
                 fill=C.WHITE,
                 width=5,
+            )
+
+        if face.face_type == C.ATTRACTION:
+            pen.rectangle(
+                (
+                    (layoutInfo.BORDER.ATTRACTION_SECTION_H, layoutInfo.BORDER.RULES_BOX - 4),
+                    (C.CARD_H, layoutInfo.BORDER.OTHER)
+                ),
+                outline=DEF_BORDER_COLOR,
+                fill=C.WHITE,
+                width=5
             )
 
         if face.isTokenOrEmblem():
@@ -476,6 +487,7 @@ def drawText(
     fullArtLands: bool = False,
     hasSetIcon: bool = True,
     alternativeFrames: bool = False,
+    useAcornSymbol: bool = True,
 ) -> Image.Image:
     """
     This function collects all functions writing text to a card
@@ -495,6 +507,7 @@ def drawText(
             image=image,
             flavorNames=flavorNames,
             alternativeFrames=alternativeFrames,
+            useAcornSymbol=useAcornSymbol,
         )
         if (face.isBasicLand() or face.isEmblem()) and not fullArtLands:
             image = drawIllustrationSymbol(card=card, image=image)
@@ -504,6 +517,11 @@ def drawText(
             hasSetIcon=hasSetIcon,
             alternativeFrames=alternativeFrames,
         )
+        if face.isAttraction():
+            image = drawAttractionLine(
+                card=face,
+                image=image
+            )
         image = drawTextBox(
             card=face,
             image=image,
@@ -525,6 +543,7 @@ def drawTitleLine(
     image: Image.Image,
     flavorNames: Flavor = {},
     alternativeFrames: bool = False,
+    useAcornSymbol: bool = True,
 ) -> Image.Image:
     """
     Draw mana cost. name and flavor name (if present) for a card
@@ -563,7 +582,7 @@ def drawTitleLine(
         #
         # It also helps with cards like Progenitus or Emergent Ultimatum
         manaFont = fitOneLine(
-            fontPath=C.SERIF_FONT,
+            fontPath=C.TITLE_FONT,
             text=manaCost,
             maxWidth=maxManaWidth,
             fontSize=C.TITLE_FONT_SIZE,
@@ -597,14 +616,20 @@ def drawTitleLine(
     displayName = flavorNames[card.name] if card.name in flavorNames else card.name
 
     # Section for card indicator at left of the name: dfc, flip
+    # and acorn indicator (for "silver-border" cards)
     # It is separated from title because we want it always at max size
     if (
-        card.face_type in C.DFC_LAYOUTS
+        (card.isAcorn() and useAcornSymbol)
+        or card.face_type in C.DFC_LAYOUTS
         or card.face_type == C.FLIP
     ):
-        faceSymbol = f"{C.FONT_CODE_POINT[card.face_symbol]} "
+        # Boy I sure hope there will never be acorn AND (dfc / flip) cards
+        if card.isAcorn():
+            faceSymbol = f"{C.FONT_CODE_POINT[C.ACORN_PLAINTEXT]} "
+        else:
+            faceSymbol = f"{C.FONT_CODE_POINT[card.face_symbol]} "
 
-        faceSymbolFont = ImageFont.truetype(C.SERIF_FONT, size=C.TITLE_FONT_SIZE)
+        faceSymbolFont = ImageFont.truetype(C.TITLE_FONT, size=C.TITLE_FONT_SIZE)
         pen.text(
             (
                 alignNameLeft,
@@ -627,7 +652,7 @@ def drawTitleLine(
     # Here the indicator section is finished, we now write the card name
 
     nameFont = fitOneLine(
-        fontPath=C.SERIF_FONT,
+        fontPath=C.TITLE_FONT,
         text=displayName,
         maxWidth=maxNameWidth,
         fontSize=C.TITLE_FONT_SIZE,
@@ -657,7 +682,7 @@ def drawTitleLine(
         C.AFTER,
         C.FLIP,
     ]:
-        trueNameFont = ImageFont.truetype(font=C.SERIF_FONT, size=C.TEXT_FONT_SIZE)
+        trueNameFont = ImageFont.truetype(font=C.TITLE_FONT, size=C.TEXT_FONT_SIZE)
         pen.text(
             (
                 (layoutInfo.BORDER.LEFT + layoutInfo.BORDER.RIGHT) // 2,
@@ -703,7 +728,7 @@ def drawTypeLine(
     pen = ImageDraw.Draw(image)
 
     typeFont = fitOneLine(
-        fontPath=C.SERIF_FONT,
+        fontPath=C.TITLE_FONT,
         text=card.type_line,
         maxWidth=maxWidth,
         fontSize=C.TYPE_FONT_SIZE,
@@ -728,6 +753,40 @@ def drawTypeLine(
         image = image.transpose(Image.ROTATE_270)
     elif flip:
         image = image.transpose(Image.ROTATE_180)
+
+    return image
+
+
+def drawAttractionLine(
+    card: Card,
+    image: Image.Image
+) -> Image.Image:
+    """
+    Draw Attraction line to Attractions (numbers from 1 to 6)
+    We don't colour the numbers based on the card, because
+    1) the colouring does dot translate well to a black/white proxy
+    2) We should randomize the selected numbers and that does not translate well
+    into a deterministic proxy generator
+    """
+    (_, layoutInfo, _, _) = getLayoutInfoAndRotation(
+        card, alternativeFrames=False
+    )
+
+    alignRulesTextLeft = layoutInfo.BORDER.ATTRACTION_SECTION_H + C.BORDER
+
+    alignRulesTextAscendant = layoutInfo.BORDER.RULES_BOX + C.BORDER
+
+    pen = ImageDraw.Draw(image)
+
+    textFont = ImageFont.truetype(C.RULES_FONT, C.ATTRACTION_FONT_SIZE)
+    pen.text(
+        (alignRulesTextLeft, alignRulesTextAscendant),
+        text=C.ATTRACTION_LINE,
+        font=textFont,
+        spacing=C.ATTRACTION_PIXELS_BETWEEN_LINES,
+        fill=C.BLACK,
+        anchor="la",
+    )
 
     return image
 
@@ -759,6 +818,11 @@ def drawTextBox(
     alignRulesTextLeft = layoutInfo.BORDER.LEFT + C.BORDER
     maxWidth = layoutInfo.SIZE.H - 2 * C.BORDER
 
+    # Attractions have a column with numbers on the right.
+    # We don't want the rules text to overlap with that
+    if card.isAttraction():
+        maxWidth -= layoutInfo.SIZE.ATTRACTION_SECTION_H
+
     # Adventure main face only has half the space for rules text
     # I feel so dirty doing this here, but I see no choice
     if card.face_type == C.ADV and card.face_num == 0:
@@ -780,7 +844,7 @@ def drawTextBox(
     pen = ImageDraw.Draw(image)
 
     (fmtText, textFont) = fitMultiLine(
-        fontPath=C.MONOSPACE_FONT,
+        fontPath=C.RULES_FONT,
         cardText=cardText,
         maxWidth=maxWidth,
         maxHeight=maxHeight,
@@ -813,7 +877,7 @@ def drawFuseText(card: Card, image: Image.Image) -> Image.Image:
     pen = ImageDraw.Draw(image)
 
     fuseTextFont = fitOneLine(
-        fontPath=C.MONOSPACE_FONT,
+        fontPath=C.RULES_FONT,
         text=card.fuse_text,
         maxWidth=C.CARD_V - 2 * C.BORDER,
         fontSize=C.TEXT_FONT_SIZE,
@@ -866,7 +930,7 @@ def drawPTL(
     pen = ImageDraw.Draw(image)
 
     ptlFont = fitOneLine(
-        fontPath=C.MONOSPACE_FONT,
+        fontPath=C.RULES_FONT,
         text=ptl,
         maxWidth=layoutInfo.SIZE.PTL_BOX_H - 2 * C.BORDER,
         fontSize=C.TITLE_FONT_SIZE,
@@ -911,7 +975,7 @@ def drawOther(
 
     pen = ImageDraw.Draw(image)
 
-    credFont = ImageFont.truetype(C.MONOSPACE_FONT, size=C.OTHER_FONT_SIZE)
+    credFont = ImageFont.truetype(C.RULES_FONT, size=C.OTHER_FONT_SIZE)
     pen.text(
         (
             alignOtherLeft,
@@ -929,7 +993,7 @@ def drawOther(
     )
     credLength = pen.textlength(text=C.CREDITS + "   ", font=credFont)
 
-    proxyFont = ImageFont.truetype(C.SERIF_FONT, size=C.OTHER_FONT_SIZE * 4 // 3)
+    proxyFont = ImageFont.truetype(C.TITLE_FONT, size=C.OTHER_FONT_SIZE * 4 // 3)
     pen.text(
         (
             alignOtherLeft + credLength,
@@ -965,6 +1029,7 @@ def drawCard(
     useTextSymbols: bool = True,
     fullArtLands: bool = False,
     alternativeFrames: bool = False,
+    useAcornSymbol: bool = True,
 ) -> Image.Image:
     """
     Takes card info and external parameters, producing a complete image.
@@ -988,6 +1053,7 @@ def drawCard(
         fullArtLands=fullArtLands,
         hasSetIcon=setIcon is not None,
         alternativeFrames=alternativeFrames,
+        useAcornSymbol=useAcornSymbol,
     )
 
     return image

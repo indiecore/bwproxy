@@ -59,6 +59,9 @@ class Card:
 
         # Setting non-standard layouts (attraction, fuse, aftermath)
         
+        if self.isAttraction():
+            self.data["layout"] = C.ATTRACTION
+
         if not self._hasKey("layout"):
             return
         layout = self.layout
@@ -264,6 +267,9 @@ class Card:
     def isTokenOrEmblem(self) -> bool:
         return self.isToken() or self.isEmblem()
     
+    def isAttraction(self) -> bool:
+        return "Attraction" in self.type_line
+
     def isTwoParts(self) -> bool:
         return self._hasKey("card_faces")
 
@@ -273,6 +279,20 @@ class Card:
 
     def hasFlavorName(self) -> bool:
         return self._hasKey("flavor_name")
+
+    def isAcorn(self) -> bool:
+        """
+        A crude approximation, also including things like
+        Vanguard, Conspiracy and the like, but still useful
+        """
+        if self.isTokenOrEmblem():
+            return False
+        legal: dict[str, str] = self._getKey("legalities")
+        return all([
+            legal["vintage"] == "not_legal",
+            legal["alchemy"] == "not_legal",
+            legal["historic"] == "not_legal"
+        ])
 
 
 Deck = List[Card]

@@ -374,12 +374,18 @@ if __name__ == "__main__":
         dest="alternativeFrames",
         help="print flip cards as DFC, aftermath as regular split",
     )
+    parser.add_argument(
+        "--no-acorn-stamp",
+        action="store_false",
+        dest="useAcornSymbol",
+        help="do not print the acorn symbol on non tournament legal cards"
+    )
 
     args = parser.parse_args()
 
     decklistPath: Path = Path(args.decklistPath)
 
-    deckName = decklistPath.name
+    deckName = decklistPath.stem
     if args.setIconPath:
         setIcon = drawUtil.resizeSetIcon(Image.open(args.setIconPath).convert("RGBA"))
     else:
@@ -400,6 +406,7 @@ if __name__ == "__main__":
             useTextSymbols=args.useTextSymbols,
             fullArtLands=args.fullArtLands,
             alternativeFrames=args.alternativeFrames,
+            useAcornSymbol=args.useAcornSymbol
         ) for card in tqdm(
             allCards,
             desc="Card drawing progress: ",
