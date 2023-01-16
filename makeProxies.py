@@ -128,7 +128,7 @@ def parseToken(text: str, name: Optional[str] = None) -> Card:
         "type_line": type_line,
         "name": name,
         "colors": colors,
-        "layout": C.TOKEN,
+        "layout": C.LayoutType.TOK.value,
         "mana_cost": "",
     }
 
@@ -287,8 +287,10 @@ def loadCards(
             flavorName = flavorNameMatch.groups()[0]
             flavorNames[cardData.name] = flavorName
 
-        if cardData.layout in C.DFC_LAYOUTS or (
-            cardData.layout == C.FLIP and alternativeFrames
+        if (
+            cardData.layout in C.LAYOUT_TYPES_DF or (
+                cardData.layout == C.LayoutType.FLP and alternativeFrames
+            )
         ):
             facesData = cardData.card_faces
             for _ in range(cardCount):
@@ -326,8 +328,8 @@ if __name__ == "__main__":
     parser.add_argument(
         "--page-format",
         "-p",
-        default=C.PAGE_FORMAT[0],
-        choices=C.PAGE_FORMAT,
+        default=C.PageFormat.A4,
+        choices=C.PageFormat,
         dest="pageFormat",
         help="printing page format",
     )

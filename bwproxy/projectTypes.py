@@ -1,21 +1,21 @@
 from __future__ import annotations
-from typing import Any, List, Dict
+from typing import Any, List, Dict, Set
 from scrython import Named
 from copy import deepcopy
 import re
 
 from . import projectConstants as C
 
-nonColorRe = re.compile(r"[^WUBRG]")
+colorRe = re.compile(r"[WUBRG]")
 
 JsonDict = C.JsonDict
 MTG_COLORS = C.MTG_COLORS
 
 def extractColor(manaCost: str) -> list[MTG_COLORS]:
-    colors = nonColorRe.sub("", manaCost)
+    colors: Set[MTG_COLORS] = set(colorRe.findall(manaCost))
     ret: list[MTG_COLORS] = []
-    for c in colors:
-        if c in C.MANA_SYMBOLS and c not in ret:
+    for c in C.MANA_SYMBOLS:
+        if c in colors:
             ret.append(c)
     return ret
 
@@ -47,12 +47,15 @@ class Card:
         
         # Setting info for Emblem and Tokens
         if self.isEmblem():
-            self.data["layout"] = C.EMBLEM
+            self.data["layout"] = C.LayoutType.EMB.value
             self.data["type_line"] = "Emblem"
             self.data["name"] = self.data["name"].replace(" Emblem", "")
 
         if self.isToken():
-            self.data["layout"] = C.TOKEN
+            if self.isTextlessToken():
+                self.data["layout"] = C.LayoutType.VTK.value
+            else:
+                self.data["layout"] = C.LayoutType.TOK.value
             if not self._hasKey("card_faces") and len(self.colors) > 0:
                 self.data["color_indicator"] = self.colors
 
@@ -60,21 +63,22 @@ class Card:
         # Setting non-standard layouts (attraction, fuse, aftermath)
         
         if self.isAttraction():
-            self.data["layout"] = C.ATTRACTION
+            self.data["layout"] = C.LayoutType.ATR.value
 
         if not self._hasKey("layout"):
+            print("wtf")
             return
         layout = self.layout
 
-        if layout == C.SPLIT:
+        if layout == C.LayoutType.SPL:
             # Set up alternative split layouts (aftermath and fuse)
             secondHalfText = self.card_faces[1].oracle_text.split("\n")
             if secondHalfText[0].split(" ")[0] == "Aftermath":
                 # Second half begins with Aftermath
-                self.data["layout"] = C.AFTER
+                self.data["layout"] = C.LayoutType.AFT.value
             if secondHalfText[-1].split(" ")[0] == "Fuse":
                 # Second half ends with Fuse
-                self.data["layout"] = C.FUSE
+                self.data["layout"] = C.LayoutType.FUS.value
                 # Adding the fuse text to the main card
                 self.data["fuse_text"] = secondHalfText[-1]
     
@@ -130,8 +134,14 @@ class Card:
         return self._getKey("loyalty")
 
     @property
-    def layout(self) -> str:
-        return self._getKey("layout")
+    def layout(self) -> C.LayoutType:
+        layout_str: str = self._getKey("layout")
+        ret: C.LayoutType
+        try:
+            ret = C.LayoutType(layout_str)
+        except:
+            ret = C.LayoutType.STD
+        return ret
 
     @property
     def fuse_text(self) -> str:
@@ -144,35 +154,32 @@ class Card:
         E.G. the two halves in a split/aftermath, the two faces in a double faced card,
         adventure/other half in the adventure cards...
         """
-        faces = self._getKey("card_faces")
-        layout = self.layout
-        faces[0]["face_type"] = layout
-        faces[1]["face_type"] = layout
+        faces: List[JsonDict] = self._getKey("card_faces")
+        layout: C.LayoutType = self.layout
+        faces[0]["layout"] = layout.value
+        faces[1]["layout"] = layout.value
         faces[0]["face_num"] = 0
         faces[1]["face_num"] = 1
         faces[0]["legalities"] = self._getKey("legalities")
         faces[1]["legalities"] = self._getKey("legalities")
 
-        if layout in C.DFC_LAYOUTS:
-            faces[0]["face_symbol"] = f"{{{layout}_FRONT}}"
-            faces[1]["face_symbol"] = f"{{{layout}_BACK}}"
-            faces[0]["layout"] = layout
-            faces[1]["layout"] = layout
-
-        if layout == C.FLIP:
-            faces[0]["face_symbol"] = f"{{{layout}_FRONT}}"
-            faces[1]["face_symbol"] = f"{{{layout}_BACK}}"
+        if layout == C.LayoutType.FLP:
             faces[0]["colors"] = self.colors
             faces[1]["colors"] = self.colors
             faces[1]["color_indicator"] = self.colors
 
-        if layout in [C.SPLIT, C.FUSE, C.AFTER]:
+        if layout in [
+            C.LayoutType.SPL,
+            C.LayoutType.FUS,
+            C.LayoutType.AFT,
+            C.LayoutType.ADV
+        ]:
             # Subfaces don't have colors, and if you ask the main face it will respond
             # with all the card's colors, so we need to extract them from mana cost
             faces[0]["colors"] = extractColor(faces[0]["mana_cost"])
             faces[1]["colors"] = extractColor(faces[1]["mana_cost"])
 
-        if layout == C.FUSE:
+        if layout == C.LayoutType.FUS:
             # Fuse text is handled separately, so we remove it from the faces' oracle text
             faces[0]["oracle_text"] = faces[0]["oracle_text"].replace(
                 "\n" + self.fuse_text, ""
@@ -186,32 +193,42 @@ class Card:
     @property
     def face_symbol(self) -> str:
         """
-        face_symbol is the face indicator symbol appearing on dfc cards
-        (front face / back face)
+        The face indicator symbol appearing on dfc cards
+        (front face / back face).
         It's also added to flip cards, using tap and untap symbols
+        and for acorn cards.
+
         Only set up for faces (not whole cards)
         """
-        return self._getKey("face_symbol")
+        assert self.layout in [C.LayoutType.FLP, *C.LAYOUT_TYPES_DF] or self.isAcorn()
+        if self.isAcorn():
+            return C.ACORN_PLAINTEXT
+        else:
+            return f"{{{self.layout.value}{self.face_num}}}"
 
-    @property
-    def face_type(self) -> str:
-        """
-        face_type is the analogous of layout for all double cards
-        Value is the same of parent's layout
-        If it's not present, returns the card's layout
-        """
-        try:
-            return self._getKey("face_type")
-        except:
-            return self.layout
+    # @property
+    # def face_type(self) -> C.LayoutType:
+    #     """
+    #     face_type is the analogous of layout for all double cards
+        
+    #     Value is the same of parent's layout
+
+    #     If it's not present, returns the card's layout
+    #     """
+    #     if self._hasKey("face_type"):
+    #         return C.LayoutType(self._getKey("face_type"))
+    #     else:
+    #         return self.layout
 
     @property
     def face_num(self) -> int:
         """
         face_num is the position of the current face in the card (0 or 1)
+
         0 is the left part (split cards), the vertical part (aftermath),
-        the main creature (adventure), the unflipped part (flip)
+        the part with the title at the usual place (adventure), the unflipped part (flip)
         or the main face (DFC), while 1 is the other one.
+
         Only set up for faces (not whole cards)
         """
         return self._getKey("face_num")
