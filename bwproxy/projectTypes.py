@@ -277,10 +277,10 @@ class Card:
         This is used instead of a colored dot, since the proxies are in black and white.
         """
         try:
-            cardColorIndicator: List[C.ManaColors] = self.color_indicator
+            cardColorIndicator = self.color_indicator
         except:
             return ""
-        
+
         if len(cardColorIndicator) == 5:
             colorIndicatorText = "all colors"
         else:
@@ -329,6 +329,12 @@ class Card:
         since a face itsef does not have two faces
         """
         return self._hasKey("card_faces")
+
+    def isFace(self) -> bool:
+        """
+        Check if the card is a face, meaning we can retrieve the face_num property.
+        """
+        return (not self.isTokenOrEmblem() and self._hasKey("face_num"))
 
     @property
     def flavor_name(self) -> str:

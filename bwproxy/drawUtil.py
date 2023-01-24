@@ -1,5 +1,5 @@
 from typing import Tuple, List, Match, Union, Optional, Any, overload # type: ignore
-from PIL import Image, ImageDraw, ImageFont, ImageColor
+from PIL import Image, ImageDraw, ImageFont, ImageColor, ImageOps
 import re
 
 from . import projectConstants as C
@@ -141,7 +141,7 @@ def getLayoutData(
     (taking into consideration if the alternate card frames were requested or not)
     """
     layoutType = card.layout
-    if card.isTwoParts():
+    if card.isFace():
         faceNum = card.face_num
     else:
         faceNum = 0
@@ -284,65 +284,50 @@ def coloredTemplateSimple(card: Card, size: XY) -> Image.Image:
 
     pen = ImageDraw.Draw(coloredTemplate)
 
-    imgColors = []
-    if len(colors) == 0:
-        multicolor = False
-        imgColor = ImageColor.getrgb(C.FRAME_COLORS[C.FrameColors.Colorless])
-    elif len(colors) == 1:
-        multicolor = False
-        imgColor = ImageColor.getrgb(C.FRAME_COLORS[colors[0]])
-    elif len(colors) == 5:
-        multicolor = False
-        imgColor = ImageColor.getrgb(C.FRAME_COLORS[C.FrameColors.Multicolor])
-    else:
-        multicolor = True
-        imgColor = ImageColor.getrgb(C.FRAME_COLORS[C.FrameColors.Multicolor])
+    if 1 < len(colors) < 5:
         imgColors = [ImageColor.getrgb(C.FRAME_COLORS[c]) for c in colors]
+        # The length of each of the len(colors) - 1 color-shifting segments
+        segmentLength = size.h // (len(imgColors) - 1)
 
-    if not multicolor:
-        for idx in range(size[0]):
+        for columnIdx in range(size.h):
+            # We could have a problem here if size.h is not divisible by 6
+            # Since then it could happen that (size.h - 1) // segmentLength
+            # is len(colors) - 1 which is out of bounds in the next rows
+            # E.G. size.h = 7, len(colors) = 3 gives segmentLength = 3,
+            # and colorIdx at the end will be 6 // 3 = 2
+            colorIdx = columnIdx // segmentLength
+            currentColor = imgColors[colorIdx]
+            nextColor = imgColors[colorIdx + 1] if colorIdx < len(imgColors) else imgColors[colorIdx]
             pen.line(
-                [(idx, 0), (idx, size[1])],
-                imgColor,
+                [(columnIdx, 0), (columnIdx, size.v)],
+                interpolateColor(
+                    currentColor,
+                    nextColor,
+                    (columnIdx % segmentLength) / segmentLength
+                ),
                 width=1,
             )
+
         return coloredTemplate
 
-    n = len(imgColors) - 1
-    segmentLength = size[0] // n
-    # imgColors.append(imgColors[-1]) # Necessary line in order not to crash
+    if len(colors) == 0:
+        imgColor = ImageColor.getrgb(C.FRAME_COLORS[C.FrameColors.Colorless])
+    elif len(colors) == 1:
+        imgColor = ImageColor.getrgb(C.FRAME_COLORS[colors[0]])
+    else:
+        # Card has 5 colors
+        imgColor = ImageColor.getrgb(C.FRAME_COLORS[C.FrameColors.Multicolor])
     
-    for idx in range(size[0]):
-        i = idx // segmentLength
-        pen.line(
-            [(idx, 0), (idx, size[1])],
-            interpolateColor(
-                imgColors[i], imgColors[i + 1], (idx % segmentLength) / segmentLength
-            ),
+    pen.rectangle(
+        ((0, 0), (size.h, size.v)),
+        fill=imgColor,
+        outline=imgColor,
         width=1,
     )
-    
     return coloredTemplate
 
 
-def colorHalf(
-    card: Card, image: Image.Image, layoutData: C.LayoutData
-) -> Image.Image:
-
-    rotation = layoutData.ROTATION
-    if rotation is not None:
-        image = image.transpose(rotation[0])
-
-    size = XY(layoutData.SIZE.CARD.HORIZ, layoutData.SIZE.CARD.VERT)
-    halfImage = coloredTemplateSimple(card=card, size=size)
-    image.paste(halfImage, box=(layoutData.BORDER.CARD.LEFT, layoutData.BORDER.CARD.TOP))
-    
-    if rotation is not None:
-        image = image.transpose(rotation[1])
-    return image
-
-
-def coloredBlank(card: Card) -> Image.Image:
+def newColoredTemplate(card: Card) -> Image.Image:
     """
     Creates a template for two-colored card frames,
     with a color shift from the first color to the second.
@@ -361,11 +346,20 @@ def coloredBlank(card: Card) -> Image.Image:
 
         for face in card.card_faces:
             layoutData = getLayoutData(card=face)
-            coloredTemplate = colorHalf(
-                card = face,
-                image= coloredTemplate,
-                layoutData= layoutData
+            rotation = layoutData.ROTATION
+            if rotation is not None:
+                coloredTemplate = coloredTemplate.transpose(rotation[0])
+
+            size = XY(layoutData.SIZE.CARD.HORIZ, layoutData.SIZE.CARD.VERT)
+            halfImage = coloredTemplateSimple(card=face, size=size)
+            coloredTemplate.paste(
+                halfImage,
+                box=(layoutData.BORDER.CARD.LEFT, layoutData.BORDER.CARD.TOP)
             )
+            
+            if rotation is not None:
+                coloredTemplate = coloredTemplate.transpose(rotation[1])
+            
         return coloredTemplate
     # Flip does not have multicolored cards, so I'm ignoring it
     # Adventure for now is monocolored or both parts are the same color
@@ -374,21 +368,37 @@ def coloredBlank(card: Card) -> Image.Image:
 
 
 def colorBorders(card: Card, image: Image.Image) -> Image.Image:
-    coloredTemplate = coloredBlank(card=card)
-    for idx in range(C.CARD_H):
-        for idy in range(C.CARD_V):
-            if image.getpixel((idx, idy)) == DEFAULT_BORDER_RGB:
-                image.putpixel((idx, idy), coloredTemplate.getpixel((idx, idy)))  # type: ignore
+    """
+    Given a frame, this function creates the colored template and uses it
+    to replace each single black pixel on the frame with the corresponding one
+    in the template.
+    """
+    coloredTemplate = newColoredTemplate(card=card)
+    # The mask parameter uses white to determine where to paste,
+    # but since we want to paste on black, we take the negative of the image
+    # (after converting it to greyscale)
+    # This is significantly faster than checking the pixels one by one
+    image.paste(
+        coloredTemplate,
+        mask = ImageOps.invert(image.convert("L"))
+    )
     return image
 
 
 # Set icon functions
 
 def resizeSetIcon(setIcon: Image.Image) -> Image.Image:
-    iconSize = setIcon.size
-    scaleFactor = max(iconSize[0] / C.DRAW_SIZE.ICON, iconSize[1] / C.DRAW_SIZE.ICON)
+    """
+    The set icon passed to the program can (and probably will)
+    be of a different size than needed.
+    
+    This function will resize the icon such that it fits in a square
+    of dimensions ICON_SIZE × ICON_SIZE.
+    """
+    iconSize = XY(*setIcon.size)
+    scaleFactor = min(C.DRAW_SIZE.ICON / iconSize.h, C.DRAW_SIZE.ICON / iconSize.v)
     setIcon = setIcon.resize(
-        size=(int(iconSize[0] / scaleFactor), int(iconSize[1] / scaleFactor))
+        size = iconSize.scale(scaleFactor).tuple()
     )
     return setIcon
 
@@ -554,55 +564,75 @@ def drawTitleLine(
     if rotation is not None:
         image = image.transpose(rotation[0])
 
-    manaCornerRight = layoutData.BORDER.CARD.RIGHT - C.DRAW_SIZE.SEPARATOR
-    alignNameLeft = layoutData.BORDER.CARD.LEFT + C.DRAW_SIZE.SEPARATOR
-    alignNameAnchor = "lt"
-
     pen = ImageDraw.Draw(image)
 
     if card.isTokenOrEmblem():
         # Token and Emblems have no mana cost, and have a centered title
-        alignNameLeft = layoutData.BORDER.CARD.LEFT + layoutData.SIZE.CARD.HORIZ // 2
-        alignNameAnchor = "mt"
+        # They also don't have card indicators or flavor names
+        # and are not rotated, so we can return early
         maxNameWidth = layoutData.SIZE.CARD.HORIZ - 2 * C.DRAW_SIZE.SEPARATOR
-    else:
-        manaCost = printSymbols(card.mana_cost)
-        # Mana should never be so small that you can fit more than 16 on a line
-        maxManaWidth = max(layoutData.SIZE.CARD.HORIZ // 2, C.CARD_H // 16 * len(manaCost))
+        alignNameMiddle = layoutData.BORDER.CARD.LEFT + layoutData.SIZE.CARD.HORIZ // 2
 
-        # This fitOneLine was born for Oakhame Ranger // Bring Back, which has
-        # 4 hybrid mana symbols on the adventure part, making the title unreadable
-        # So we force the mana cost to a dimension such that 8 mana symbols
-        # occupy at the minimum 1/2 of the horizontal dimension
-        # (we don't want the mana symbols to be too small)
-        # and the dimension can grow up to half the card length,
-        # if it has not already overflown.
-        #
-        # It also helps with cards like Progenitus or Emergent Ultimatum
-        manaFont = fitOneLine(
+        nameFont = fitOneLine(
             fontPath=C.TITLE_FONT,
-            text=manaCost,
-            maxWidth=maxManaWidth,
+            text=card.name,
+            maxWidth=maxNameWidth,
             fontSize=C.DRAW_SIZE.TITLE,
         )
-            # Test for easier mana writing
         pen.text(
             (
-                manaCornerRight,
+                alignNameMiddle,
                 calcTopValue(
-                    font=manaFont,
-                    text=manaCost,
+                    font=nameFont,
+                    text=card.name,
                     upperBorder=layoutData.BORDER.CARD.TOP,
                     spaceSize=layoutData.SIZE.TITLE,
                 ),
             ),
-            text=manaCost,
-            font=manaFont,
+            text=card.name,
+            font=nameFont,
             fill=C.BLACK,
-            anchor="rt",
+            anchor="mt",
         )
-        xPos = manaCornerRight - manaFont.getsize(manaCost)[0]
-        maxNameWidth = xPos - alignNameLeft - C.DRAW_SIZE.SEPARATOR
+
+        return image
+        
+    # Card is not a token or an emblem
+
+    manaCost = printSymbols(card.mana_cost)
+    # We may need to shrink the mana cost in order to make the title readable.
+    # That's the case for Oakhame Ranger // Bring Back, on the Bring Back side.
+    # It also helps with cards like Progenitus or the Ultimatums, having many mana symbols in the cost
+    # However mana should never be too small:
+    # A good rule of thumb is that we don't want it to be possible to have more than 16 mana on a line
+    maxManaWidth = max(layoutData.SIZE.CARD.HORIZ // 2, layoutData.SIZE.CARD.HORIZ // 16 * len(manaCost))
+    manaFont = fitOneLine(
+        fontPath=C.TITLE_FONT,
+        text=manaCost,
+        maxWidth=maxManaWidth,
+        fontSize=C.DRAW_SIZE.TITLE,
+    )
+
+    manaCornerRight = layoutData.BORDER.CARD.RIGHT - C.DRAW_SIZE.SEPARATOR
+
+    pen.text(
+        (
+            manaCornerRight,
+            calcTopValue(
+                font=manaFont,
+                text=manaCost,
+                upperBorder=layoutData.BORDER.CARD.TOP,
+                spaceSize=layoutData.SIZE.TITLE,
+            ),
+        ),
+        text=manaCost,
+        font=manaFont,
+        fill=C.BLACK,
+        anchor="rt",
+    )
+    xPos = manaCornerRight - manaFont.getsize(manaCost)[0]
+    alignNameLeft = layoutData.BORDER.CARD.LEFT + C.DRAW_SIZE.SEPARATOR
+    maxNameWidth = xPos - alignNameLeft - C.DRAW_SIZE.SEPARATOR
 
     displayName = flavorNames[card.name] if card.name in flavorNames else card.name
 
@@ -661,7 +691,7 @@ def drawTitleLine(
         text=displayName,
         font=nameFont,
         fill=C.BLACK,
-        anchor=alignNameAnchor,
+        anchor="lt",
     )
 
     # If card has also a flavor name we also write the oracle name
@@ -792,13 +822,13 @@ def drawTextBox(
     (it does not translate well into a black/white proxy)
     """
 
-    if card.layout == C.LayoutType.LND:
+    if card.layout in [C.LayoutType.LND, C.LayoutType.VCR] :
         return image
 
     layoutData = getLayoutData(
         card=card, alternativeFrames=alternativeFrames
     )
-    
+
     rotation = layoutData.ROTATION
     if rotation is not None:
         image = image.transpose(rotation[0])
@@ -928,14 +958,12 @@ def drawCredits(
     Draws the credits text line in the bottom section (site and version)
     """
 
-
     if card.layout == C.LayoutType.ADV and card.face_num == 1:
         return image
-    
+
     layoutData = getLayoutData(
         card, alternativeFrames=alternativeFrames
-    )
-
+    )    
     rotation = layoutData.ROTATION
     if rotation is not None:
         image = image.transpose(rotation[0])
