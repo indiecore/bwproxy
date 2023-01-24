@@ -1,5 +1,6 @@
 from __future__ import annotations
 from typing import Any, List, Dict, Set
+from typing_extensions import Self
 from scrython import Named
 from copy import deepcopy
 import re
@@ -8,13 +9,13 @@ from . import projectConstants as C
 
 colorRe = re.compile(r"[WUBRG]")
 
-JsonDict = C.JsonDict
-MTG_COLORS = C.MTG_COLORS
-
-def extractColor(manaCost: str) -> list[MTG_COLORS]:
-    colors: Set[MTG_COLORS] = set(colorRe.findall(manaCost))
-    ret: list[MTG_COLORS] = []
-    for c in C.MANA_SYMBOLS:
+def _extractColor(manaCost: str) -> List[C.ManaColors]:
+    """
+    Extracts the card colors from the mana cost, returned in WUBRG order
+    """
+    colors: Set[C.ManaColors] = set(map(C.ManaColors, colorRe.findall(manaCost)))
+    ret: List[C.ManaColors] = []
+    for c in C.ManaColors:
         if c in colors:
             ret.append(c)
     return ret
@@ -29,48 +30,62 @@ class Card:
     Automatically sets layout and card face for transform and modal_dfc faces
     Has a method for color indicator reminder text
     """
+    @classmethod
+    def from_name(cls, name: str) -> Self:
+        named: Named = Named(fuzzy=name)
+        return cls(named)
 
-    def __init__(self, card: JsonDict | Named | Card | None = None, name: str | None = None):
-        if name is not None:
-            card = Named(fuzzy=name)
-
+    def __init__(self, card: C.JsonDict | Named | Card):
+        
+        self.data: C.JsonDict
         if isinstance(card, Named):
-            self.data: JsonDict = card.scryfallJson  # type: ignore
+            self.data = card.scryfallJson  # type: ignore
         elif isinstance(card, Card):
-            self.data: JsonDict = deepcopy(card.data)
-        elif isinstance(card, dict):
-            self.data: JsonDict = card
+            self.data = deepcopy(card.data)
+        elif isinstance(card, dict): # type: ignore
+            self.data = card
         else:
-            raise ValueError("You must provide at least one between a name or a card")
+            raise ValueError("You must provide a card")
 
-        self._version = C.VERSION
+        self._version: str = C.VERSION
         
         # Setting info for Emblem and Tokens
-        if self.isEmblem():
+        if "Emblem" in self.type_line:
             self.data["layout"] = C.LayoutType.EMB.value
             self.data["type_line"] = "Emblem"
             self.data["name"] = self.data["name"].replace(" Emblem", "")
 
-        if self.isToken():
-            if self.isTextlessToken():
-                self.data["layout"] = C.LayoutType.VTK.value
-            else:
+        if "Token" in self.type_line:
+            if self.isTwoParts():
                 self.data["layout"] = C.LayoutType.TOK.value
-            if not self._hasKey("card_faces") and len(self.colors) > 0:
-                self.data["color_indicator"] = self.colors
+            else:
+                if self.oracle_text == "":
+                    self.data["layout"] = C.LayoutType.VTK.value
+                else:
+                    self.data["layout"] = C.LayoutType.TOK.value
+                
+                if len(self.colors) > 0:
+                    self.data["color_indicator"] = self.colors
+
+        if self.name in C.BASIC_LANDS:
+            self.data["layout"] = C.LayoutType.LND.value
+
+        if not self.isTwoParts() and not self.isTokenOrEmblem() and self.oracle_text == "":
+            self.data["layout"] = C.LayoutType.VCR.value
 
 
         # Setting non-standard layouts (attraction, fuse, aftermath)
         
-        if self.isAttraction():
+        if "Attraction" in self.type_line:
             self.data["layout"] = C.LayoutType.ATR.value
 
         if not self._hasKey("layout"):
-            print("wtf")
-            return
+            # Something went horribly, horribly wrong
+            raise Exception(f"Card {self.name} has no layout")
+
         layout = self.layout
 
-        if layout == C.LayoutType.SPL:
+        if layout == C.LayoutType.SPL and self.isTwoParts():
             # Set up alternative split layouts (aftermath and fuse)
             secondHalfText = self.card_faces[1].oracle_text.split("\n")
             if secondHalfText[0].split(" ")[0] == "Aftermath":
@@ -84,9 +99,17 @@ class Card:
     
 
     def _hasKey(self, attr: str) -> bool:
+        """
+        Check if the requested key is present in the underlying json
+        """
         return attr in self.data
 
     def _getKey(self, attr: str) -> Any:
+        """
+        Returns the value of json[attr].
+
+        Raises KeyError if the attribute is not present in the JSON
+        """
         if self._hasKey(attr):
             return self.data[attr]
         raise KeyError(f"Card {self.name} has no key {attr}")
@@ -102,12 +125,12 @@ class Card:
         return self._getKey("name")
 
     @property
-    def colors(self) -> list[C.MTG_COLORS]:
-        return self._getKey("colors")
+    def colors(self) -> List[C.ManaColors]:
+        return [C.ManaColors(c) for c in self._getKey("colors")]
 
     @property
-    def color_indicator(self) -> list[C.MTG_COLORS]:
-        return self._getKey("color_indicator")
+    def color_indicator(self) -> List[C.ManaColors]:
+        return [C.ManaColors(c) for c in self._getKey("color_indicator")]
 
     @property
     def mana_cost(self) -> str:
@@ -135,26 +158,42 @@ class Card:
 
     @property
     def layout(self) -> C.LayoutType:
-        layout_str: str = self._getKey("layout")
-        ret: C.LayoutType
-        try:
-            ret = C.LayoutType(layout_str)
-        except:
-            ret = C.LayoutType.STD
-        return ret
+        """
+        Returns the layout type of the card as a LayoutType instance.
+
+        Use this to discriminate among the possible card drawing layouts.
+        """
+        layoutString: str = self._getKey("layout")
+        if layoutString in C.LayoutType.values():
+            return C.LayoutType(layoutString)
+        return C.LayoutType.STD
 
     @property
     def fuse_text(self) -> str:
         return self._getKey("fuse_text")
 
     @property
-    def card_faces(self) -> list[Card]:
+    def card_faces(self) -> List[Card]:
         """
-        card_faces are all the different units in a card
-        E.G. the two halves in a split/aftermath, the two faces in a double faced card,
-        adventure/other half in the adventure cards...
+        Returns all the different units in a card.
+        
+        Any time a single card can be two different named objects,
+        the two possibilities are called card faces and can be retrieved via this property.
+        
+        Examples include the two halves in a split/aftermath, the two faces in a double faced card,
+        Adventure/Main card in adventure cards, and both orientations of a flip card.
+
+        Please note that meld cards aren't included in this list.
+
+        If called on faces or on cards having no faces raises AttributeError.
         """
-        faces: List[JsonDict] = self._getKey("card_faces")
+        if self._hasKey("face_num"):
+            raise AttributeError(f"Cannot ask for faces of the face {self.name}")
+
+        if not self._hasKey("card_faces"):
+            raise AttributeError(f"Cannot ask for faces of the single card {self.name}")
+
+        faces: List[C.JsonDict] = self._getKey("card_faces")
         layout: C.LayoutType = self.layout
         faces[0]["layout"] = layout.value
         faces[1]["layout"] = layout.value
@@ -176,8 +215,8 @@ class Card:
         ]:
             # Subfaces don't have colors, and if you ask the main face it will respond
             # with all the card's colors, so we need to extract them from mana cost
-            faces[0]["colors"] = extractColor(faces[0]["mana_cost"])
-            faces[1]["colors"] = extractColor(faces[1]["mana_cost"])
+            faces[0]["colors"] = _extractColor(faces[0]["mana_cost"])
+            faces[1]["colors"] = _extractColor(faces[1]["mana_cost"])
 
         if layout == C.LayoutType.FUS:
             # Fuse text is handled separately, so we remove it from the faces' oracle text
@@ -195,59 +234,57 @@ class Card:
         """
         The face indicator symbol appearing on dfc cards
         (front face / back face).
-        It's also added to flip cards, using tap and untap symbols
+        It's also added to flip cards, using tap and untap symbols,
         and for acorn cards.
 
         Only set up for faces (not whole cards)
         """
-        assert self.layout in [C.LayoutType.FLP, *C.LAYOUT_TYPES_DF] or self.isAcorn()
+        if not (
+            (
+                self.layout in [C.LayoutType.FLP, *C.LAYOUT_TYPES_DF]
+                and self._hasKey("face_num")
+            ) or not self.isAcorn()
+        ):
+            raise AttributeError(f"Card {self.name} has no face symbol")
         if self.isAcorn():
             return C.ACORN_PLAINTEXT
         else:
             return f"{{{self.layout.value}{self.face_num}}}"
 
-    # @property
-    # def face_type(self) -> C.LayoutType:
-    #     """
-    #     face_type is the analogous of layout for all double cards
-        
-    #     Value is the same of parent's layout
-
-    #     If it's not present, returns the card's layout
-    #     """
-    #     if self._hasKey("face_type"):
-    #         return C.LayoutType(self._getKey("face_type"))
-    #     else:
-    #         return self.layout
-
     @property
     def face_num(self) -> int:
         """
-        face_num is the position of the current face in the card (0 or 1)
+        The progressive number of the current face in the card (0 or 1)
 
-        0 is the left part (split cards), the vertical part (aftermath),
-        the part with the title at the usual place (adventure), the unflipped part (flip)
-        or the main face (DFC), while 1 is the other one.
+        0 is the main part, or the left part in cards that don't have a main card, while 1 is the other one.
+        
+        If a card has a "//" in its Oracle name,
+        0 is the object on the left of the //, while 1 is the object on the right.
 
-        Only set up for faces (not whole cards)
+        If called on cards having faces or on single cards raises AttributeError.
         """
+        if self._hasKey("card_faces"):
+            raise AttributeError(f"Cannot ask for face number of multifaced card {self.name}")
+        if not self._hasKey("face_num"):
+            raise AttributeError(f"Cannot ask for face number of single card {self.name}")
         return self._getKey("face_num")
 
     @property
     def color_indicator_reminder_text(self) -> str:
         """
-        Since the proxies are b/w, we need to write reminder text
-        for color indicators and tokens
+        How the color indicator would appear if written out.
+
+        This is used instead of a colored dot, since the proxies are in black and white.
         """
         try:
-            cardColorIndicator: list[C.MTG_COLORS] = self.color_indicator
+            cardColorIndicator: List[C.ManaColors] = self.color_indicator
         except:
             return ""
         
         if len(cardColorIndicator) == 5:
             colorIndicatorText = "all colors"
         else:
-            colorIndicatorNames = [C.COLOR_NAMES[c] for c in cardColorIndicator]
+            colorIndicatorNames = [c.name.lower() for c in cardColorIndicator]
             if len(colorIndicatorNames) == 1:
                 colorIndicatorText = colorIndicatorNames[0]
             else:
@@ -269,25 +306,28 @@ class Card:
     def hasPTL(self) -> bool:
         return self.hasPT() or self.hasL()
 
-    def isBasicLand(self) -> bool:
-        return self.name in C.BASIC_LANDS
-
     def isToken(self) -> bool:
-        return "Token" in self.type_line
-
-    def isTextlessToken(self) -> bool:
-        return self.isToken() and self.oracle_text == ""
-
-    def isEmblem(self) -> bool:
-        return "Emblem" in self.type_line
+        """
+        Check is the card is a token (both with and without text)
+        """
+        return self.layout in [
+            C.LayoutType.TOK,
+            C.LayoutType.VTK
+        ]
 
     def isTokenOrEmblem(self) -> bool:
-        return self.isToken() or self.isEmblem()
-    
-    def isAttraction(self) -> bool:
-        return "Attraction" in self.type_line
+        """
+        Check if the card is a token or an emblem (not a sanctioned card)
+        """
+        return self.isToken() or self.layout == C.LayoutType.EMB
 
     def isTwoParts(self) -> bool:
+        """
+        Check if the card has two faces.
+
+        Please note that this is not based on the card layout,
+        since a face itsef does not have two faces
+        """
         return self._hasKey("card_faces")
 
     @property
@@ -299,12 +339,15 @@ class Card:
 
     def isAcorn(self) -> bool:
         """
-        A crude approximation, also including things like
-        Vanguard, Conspiracy and the like, but still useful
+        Check if the card is acorn, meaning not-tournament legal
+        (the old silver-border).
+
+        This is only an approximation, since it also includes oversized card
+        like Vanguard, Conspiracy, and Planes.
         """
         if self.isTokenOrEmblem():
             return False
-        legal: dict[str, str] = self._getKey("legalities")
+        legal: Dict[str, str] = self._getKey("legalities")
         return all([
             legal["vintage"] == "not_legal",
             legal["alchemy"] == "not_legal",
@@ -316,5 +359,3 @@ Deck = List[Card]
 Flavor = Dict[str, str]
 
 XY = C.XY
-Box = C.Box
-Layout = C.Layout

@@ -1,6 +1,6 @@
 *.txt
 *.p
 __pycache__/
-pages/
+output/
 icons/
 .vscode

@@ -1,161 +1,22 @@
-from collections import defaultdict
 from copy import deepcopy
+from PIL import Image
 from typing import (
     Any,
-    DefaultDict,
-    Generic,
-    TypeVar,
     Dict,
     Tuple,
     List,
     Union,
-    NamedTuple
+    NamedTuple,
+    Iterable,
 )
-from typing_extensions import Self
-from enum import Enum, IntEnum
+from typing_extensions import Literal, Self
+from enum import Enum
 
 VERSION: str = "v2.2"
 # 0x23F is the paintbrush symbol
 CREDITS: str = chr(0x23F) + " https://a11ce.com/bwproxy"
 
 # Helper classes and functions
-
-class Rot(IntEnum):
-    # This will probably be a mistake, but I do not want to import PIL.Image
-    # just so I can use Image.ROTATE_90
-    ROT_0 = 1
-    ROT_90 = 2
-    ROT_180 = 3
-    ROT_270 = 4
-
-class LayoutType(Enum):
-    STD = "standard"
-    SPL = "split"
-    FUS = "fuse"
-    AFT = "aftermath"
-    ADV = "adventure"
-    FLP = "flip"
-    LND = "land"
-    VTK = "vanilla_token"
-    TOK = "token"
-    EMB = "emblem"
-    TDF = "transform"
-    MDF = "modal_dfc"
-    ATR = "attraction"
-
-
-# This is almost useless (we could use a dictionary),
-# but has the advantage of syntax higlighting and autocompletion
-
-class BorderData():
-    def __init__(
-        self,
-        TOP: int = -1,
-        BOTTOM: int = -1,
-        LEFT: int = -1,
-        RIGHT: int = -1,
-    ):
-        self.TOP: int = TOP
-        self.BOTTOM: int = BOTTOM
-        self.LEFT: int = LEFT
-        self.RIGHT: int = RIGHT
-
-class SizeData():
-    def __init__(
-        self,
-        HORIZ: int = -1,
-        VERT: int = -1,
-    ):
-        self.HORIZ: int = HORIZ
-        self.VERT: int = VERT
-
-class Border():
-    def __init__(
-        self,
-        CARD: BorderData,
-    ):
-        self.CARD: BorderData = CARD
-        self.IMAGE: int = -1
-        self.TYPE: int = -1
-        self.RULES: BorderData = BorderData()
-        self.PTL_BOX: BorderData = BorderData()
-        self.CREDITS: int = -1
-        self.FUSE: BorderData
-        self.ATTRACTION: BorderData
-
-class Size():
-    def __init__(
-        self,
-        CARD: SizeData,
-        TITLE: int,
-        IMAGE: int,
-        TYPE: int,
-        RULES: SizeData,
-        PTL_BOX: SizeData,
-        CREDITS: int,
-    ):
-        self.CARD: SizeData = CARD
-        self.TITLE: int = TITLE
-        self.IMAGE: int = IMAGE
-        self.TYPE: int = TYPE
-        self.RULES: SizeData = RULES
-        self.PTL_BOX: SizeData = PTL_BOX
-        self.CREDITS: int = CREDITS
-        self.FUSE: SizeData
-        self.ATTRACTION: SizeData
-
-class FontMiddle():
-    def __init__(
-        self,
-    ):
-        self.PTL_H: int = -1
-        self.PTL_V: int = -1
-        self.FUSE_V: int
-        self.ATTRACTION_H: int
-
-class LayoutData():
-    def __init__(
-        self,
-        ROTATION: Rot,
-        BORDER: Border,
-        SIZE: Size,
-        FONT_MIDDLE: FontMiddle,
-    ):
-        self.LAYOUT_TYPE: LayoutType
-        self.ROTATION: Rot = ROTATION
-        self.BORDER: Border = BORDER
-        self.SIZE: Size = SIZE
-        self.FONT_MIDDLE: FontMiddle = FONT_MIDDLE
-
-
-T = TypeVar("T")
-
-class Map(Dict[str, T], Generic[T]):
-    """
-    Map is a dictionary that can be manipulated using dot notation instead of bracket notation.
-    Just like a dictionary, it raises a KeyError if it cannot retrieve a property.
-    """
-
-    def __init__(self, *args: Dict[str, Any], **kwargs: Any):
-        self.update(*args, **kwargs)
-
-    def __getattr__(self, attr: str):
-        return self[attr]
-
-    def __setattr__(self, key: str, value: Any):
-        self.__setitem__(key, value)
-
-    def __setitem__(self, key: str, value: Any):
-        super(Map, self).__setitem__(key, value)
-        self.__dict__.update({key: value})
-
-    def __delattr__(self, item: str):
-        self.__delitem__(item)
-
-    def __delitem__(self, key: str):
-        super(Map, self).__delitem__(key)
-        del self.__dict__[key]
-
 
 class XY(NamedTuple):
     """
@@ -185,10 +46,122 @@ class XY(NamedTuple):
     def transpose(self) -> Self:
         return XY(self[1], self[0])
 
+Rot = Literal[2, 3, 4]
 
-Box = Tuple[XY, XY]
-Layout = Map[Map[int]]
+class LayoutType(Enum):
+    STD = "standard"
+    SPL = "split"
+    FUS = "fuse"
+    AFT = "aftermath"
+    ADV = "adventure"
+    FLP = "flip"
+    LND = "land"
+    VTK = "vanilla_token"
+    VCR = "vanilla_creature"
+    TOK = "token"
+    EMB = "emblem"
+    TDF = "transform"
+    MDF = "modal_dfc"
+    ATR = "attraction"
+
+    @classmethod
+    def values(cls) -> Iterable[str]:
+        for x in cls:
+            yield x.value
+
+# This is almost useless (we could use a dictionary),
+# but has the advantage of syntax higlighting and autocompletion
+
+class _BorderData():
+    def __init__(
+        self,
+        TOP: int = -1,
+        BOTTOM: int = -1,
+        LEFT: int = -1,
+        RIGHT: int = -1,
+    ):
+        self.TOP: int = TOP
+        self.BOTTOM: int = BOTTOM
+        self.LEFT: int = LEFT
+        self.RIGHT: int = RIGHT
+
+    def __repr__(self):
+        return f"T: {self.TOP}, B: {self.BOTTOM}, L: {self.LEFT}, R: {self.RIGHT}"
+
+class _SizeData():
+    def __init__(
+        self,
+        HORIZ: int = -1,
+        VERT: int = -1,
+    ):
+        self.HORIZ: int = HORIZ
+        self.VERT: int = VERT
+
+    def __repr__(self) -> str:
+        return f"H: {self.HORIZ}, V: {self.VERT}"
+
+class _Border():
+    def __init__(
+        self,
+        CARD: _BorderData,
+    ):
+        self.CARD: _BorderData = CARD
+        self.IMAGE: int = -1
+        self.TYPE: int = -1
+        self.RULES: _BorderData = _BorderData()
+        self.PTL_BOX: _BorderData = _BorderData()
+        self.CREDITS: int = -1
+        self.FUSE: _BorderData
+        self.ATTRACTION: _BorderData
+
+class _Size():
+    def __init__(
+        self,
+        CARD: _SizeData,
+        TITLE: int,
+        IMAGE: int,
+        TYPE: int,
+        RULES: _SizeData,
+        PTL_BOX: _SizeData,
+        CREDITS: int,
+    ):
+        self.CARD: _SizeData = CARD
+        self.TITLE: int = TITLE
+        self.IMAGE: int = IMAGE
+        self.TYPE: int = TYPE
+        self.RULES: _SizeData = RULES
+        self.PTL_BOX: _SizeData = PTL_BOX
+        self.CREDITS: int = CREDITS
+        self.FUSE: _SizeData
+        self.ATTRACTION: _SizeData
+
+class _FontMiddle():
+    def __init__(
+        self,
+    ):
+        self.PTL_H: int = -1
+        self.PTL_V: int = -1
+        self.FUSE_V: int
+        self.ATTRACTION_H: int
+
+class LayoutData():
+    def __init__(
+        self,
+        ROTATION: Union[None, Tuple[Rot, Rot]],
+        BORDER: _Border,
+        SIZE: _Size,
+        FONT_MIDDLE: _FontMiddle,
+    ):
+        self.LAYOUT_TYPE: LayoutType
+        self.ROTATION: Union[None, Tuple[Rot, Rot]] = ROTATION
+        self.BORDER: _Border = BORDER
+        self.SIZE: _Size = SIZE
+        self.FONT_MIDDLE: _FontMiddle = FONT_MIDDLE
+        self.ICON_CENTER: XY
+        self.IMAGE_POSITION: XY
+
 JsonDict = Dict[str, Any]
+RGB = Union[Tuple[int, int, int], Tuple[int, int, int, int]]
 
 # File locations
 
@@ -203,18 +176,38 @@ RULES_FONT = "fonts/rules_font.ttf"
 
 # MTG constants: colors, basic lands, color names...
 
-MTG_COLORS = str  # Literal["W", "U", "B", "R", "G"]
+class ManaColors(Enum):
+    White = "W"
+    Blue = "U"
+    Black = "B"
+    Red = "R"
+    Green = "G"
+    
+    @classmethod
+    def values(cls) -> Iterable[str]:
+        for x in cls:
+            yield x.value
+
+class FrameColors(Enum):
+    Multicolor = "M"
+    Colorless = "C"
+
+    @classmethod
+    def values(cls) -> Iterable[str]:
+        for x in cls:
+            yield x.value
 
 FRAME_COLORS = {
-    "W": "#fcf4a3",
-    "U": "#127db4",
-    "B": "#692473",
-    "R": "#e13c32",
-    "G": "#0f7846",
-    "C": "#919799",
-    "M": "#d4af37",  # Multicolor / Gold
-    "default": "#000000",
+    ManaColors.White: "#fcf4a3",
+    ManaColors.Blue: "#127db4",
+    ManaColors.Black: "#692473",
+    ManaColors.Red: "#e13c32",
+    ManaColors.Green: "#0f7846",
+    FrameColors.Colorless: "#919799",
+    FrameColors.Multicolor: "#d4af37",  # Multicolor / Gold
 }
+
+DEFAULT_FRAME_COLOR = "#000000"
 
 CARD_SUPERTYPES = [
     "Basic",
@@ -242,16 +235,8 @@ BASIC_LANDS = BASIC_LANDS_NONSNOW + [
     f"Snow-Covered {l}" for l in BASIC_LANDS_NONSNOW if l != "Wastes"
 ]
 
-MANA_SYMBOLS: List[MTG_COLORS] = ["W", "U", "B", "R", "G"]
 # Can be obtained programmatically, but that's more concise
-HYBRID_SYMBOLS = ["W/U", "U/B", "B/R", "R/G", "G/W", "W/B", "U/R", "B/G", "R/W", "G/U"]
-COLOR_NAMES = {"W": "white", "U": "blue", "B": "black", "R": "red", "G": "green"}
-MTG_COLORLESS: str = "C"
-MTG_MULTICOLOR: str = "M"
-
-# Layout types
-TOKEN = "token"
-EMBLEM = "emblem"
+MANA_HYBRID = ["W/U", "U/B", "B/R", "R/G", "G/W", "W/B", "U/R", "B/G", "R/W", "G/U"]
 
 LAYOUT_TYPES_DF = set([LayoutType.TDF, LayoutType.MDF])
 LAYOUT_TYPES_TWO_PARTS = set([
@@ -267,35 +252,38 @@ ACORN_PLAINTEXT = "{ACORN}"
 # FONT_CODE_POINT includes the symbols used in the card text and mana cost.
 # Those were added manually to the font file at the specified unicode point
 FONT_CODE_POINT: Dict[str, str] = {}
-for i in range(21):
-    FONT_CODE_POINT[f"{{{i}}}"] = chr(0x200 + i)  # Generic mana cost (0 to 20)
-for (i, c) in enumerate(MANA_SYMBOLS):
-    FONT_CODE_POINT[f"{{{c}}}"] = chr(0x220 + i)  # Colored Mana
-    FONT_CODE_POINT[f"{{2/{c}}}"] = chr(0x225 + i)  # Two-Hybrid Mana
-    FONT_CODE_POINT[f"{{{c}/P}}"] = chr(0x22A + i)  # Phyrexian Mana
-for (i, h) in enumerate(HYBRID_SYMBOLS):
-    FONT_CODE_POINT[f"{{{h}}}"] = chr(0x230 + i)  # Hybrid Mana
-    FONT_CODE_POINT[f"{{{h}/P}}"] = chr(0x240 + i)  # Hybrid Phyrexian Mana
-FONT_CODE_POINT["{X}"] = chr(0x215)
-FONT_CODE_POINT["{Y}"] = chr(0x216)
-FONT_CODE_POINT["{Z}"] = chr(0x217)
-FONT_CODE_POINT["{T}"] = chr(0x218)  # Tap
-FONT_CODE_POINT["{Q}"] = chr(0x219)  # Untap
-FONT_CODE_POINT["{S}"] = chr(0x21E)  # Snow Mana
-FONT_CODE_POINT["{C}"] = chr(0x21F)  # Colorless Mana
-FONT_CODE_POINT["{P}"] = chr(0x22F)  # Standard Phyrexian Mana
-FONT_CODE_POINT["{E}"] = chr(0x23A)  # Energy Counter
-FONT_CODE_POINT["{TK}"] = chr(0x23B) # Ticket Counter (from Unfinity)
-FONT_CODE_POINT[f"{{{LayoutType.MDF.value}0}}"] = chr(0x21A)  # Sun
-FONT_CODE_POINT[f"{{{LayoutType.MDF.value}1}}"] = chr(0x21B)  # Moon
-FONT_CODE_POINT[f"{{{LayoutType.TDF.value}0}}"] = chr(0x21C)  # One triangle
-FONT_CODE_POINT[f"{{{LayoutType.TDF.value}1}}"] = chr(0x21D)  # Two triangles
-FONT_CODE_POINT[f"{{{LayoutType.FLP.value}0}}"] = chr(0x218)  # Tap
-FONT_CODE_POINT[f"{{{LayoutType.FLP.value}1}}"] = chr(0x219)  # Untap
-FONT_CODE_POINT[ACORN_PLAINTEXT] = chr(0x23C) # Acorn Symbol
-FONT_CODE_POINT["{PAINTBRUSH}"] = chr(0x23F)  # Paintbrush Symbol
+# This is just to be able to collapse everything
+if True:
+    for _i in range(21):
+        FONT_CODE_POINT[f"{{{_i}}}"] = chr(0x200 + _i)  # Generic mana cost (0 to 20)
+    for (_i, _c) in enumerate(ManaColors):
+        _cVal = _c.value
+        FONT_CODE_POINT[f"{{{_cVal}}}"] = chr(0x220 + _i)  # Colored Mana
+        FONT_CODE_POINT[f"{{2/{_cVal}}}"] = chr(0x225 + _i)  # Two-Hybrid Mana
+        FONT_CODE_POINT[f"{{{_cVal}/P}}"] = chr(0x22A + _i)  # Phyrexian Mana
+    for (_i, _h) in enumerate(MANA_HYBRID):
+        FONT_CODE_POINT[f"{{{_h}}}"] = chr(0x230 + _i)  # Hybrid Mana
+        FONT_CODE_POINT[f"{{{_h}/P}}"] = chr(0x240 + _i)  # Hybrid Phyrexian Mana
+    FONT_CODE_POINT["{X}"] = chr(0x215)
+    FONT_CODE_POINT["{Y}"] = chr(0x216)
+    FONT_CODE_POINT["{Z}"] = chr(0x217)
+    FONT_CODE_POINT["{T}"] = chr(0x218)  # Tap
+    FONT_CODE_POINT["{Q}"] = chr(0x219)  # Untap
+    FONT_CODE_POINT["{S}"] = chr(0x21E)  # Snow Mana
+    FONT_CODE_POINT["{C}"] = chr(0x21F)  # Colorless Mana
+    FONT_CODE_POINT["{P}"] = chr(0x22F)  # Standard Phyrexian Mana
+    FONT_CODE_POINT["{E}"] = chr(0x23A)  # Energy Counter
+    FONT_CODE_POINT["{TK}"] = chr(0x23B) # Ticket Counter (from Unfinity)
+    FONT_CODE_POINT[f"{{{LayoutType.MDF.value}0}}"] = chr(0x21A)  # Sun
+    FONT_CODE_POINT[f"{{{LayoutType.MDF.value}1}}"] = chr(0x21B)  # Moon
+    FONT_CODE_POINT[f"{{{LayoutType.TDF.value}0}}"] = chr(0x21C)  # One triangle
+    FONT_CODE_POINT[f"{{{LayoutType.TDF.value}1}}"] = chr(0x21D)  # Two triangles
+    FONT_CODE_POINT[f"{{{LayoutType.FLP.value}0}}"] = chr(0x218)  # Tap
+    FONT_CODE_POINT[f"{{{LayoutType.FLP.value}1}}"] = chr(0x219)  # Untap
+    FONT_CODE_POINT[ACORN_PLAINTEXT] = chr(0x23C) # Acorn Symbol
+    FONT_CODE_POINT["{PAINTBRUSH}"] = chr(0x23F)  # Paintbrush Symbol
 
-ATTRACTION_LINE = "\n".join([chr(0x261 + i) for i in range(6)]) # Numbers 1 to 6, enclosed in circles
+ATTRACTION_COLUMN = "\n".join([chr(0x261 + i) for i in range(6)]) # Numbers 1 to 6, enclosed in circles
 
 TODO = """
 Class, Sagas and Leveler frames?
@@ -315,492 +303,276 @@ COMMENTS
 # If we resize a MtG card to 1.875 in x 2.625 in (x0.75)
 # We can have a 4x4 of cards in both A4 and letter
 
-# PageFormat = str  # Literal["a4paper", "letter"]
-
-# A4_FORMAT: PageFormat = "a4paper"
-# LETTER_FORMAT: PageFormat = "letter"
-# PAGE_FORMAT: List[PageFormat] = ["a4paper", "letter"]
+class PageFormat(Enum):
+    A4 = "a4paper"
+    LETTER = "letter"
 
 WHITE = (255, 255, 255)
 BLACK = (0, 0, 0)
 DPI = 300
-A4_PAPER = XY(int(8.25 * DPI), int(11.75 * DPI))
-LETTER_PAPER = XY(int(8.5 * DPI), int(11 * DPI))
 CARD_H = int(2.5 * DPI)
 CARD_V = int(3.5 * DPI)
 CARD_SIZE = XY(CARD_H, CARD_V)
-CARD_BOX: Box = (XY(0, 0), CARD_SIZE)
 SMALL_CARD_SIZE = CARD_SIZE.scale(factor=0.75)
 # Distance between cards when paginated, in pixels
 CARD_DISTANCE = 20
-# Desired distance in pixels between elements inside the card, e.g. between card border and title
-BORDER = 15
-
-TITLE_FONT_SIZE = 60
-TYPE_FONT_SIZE = 50
-TEXT_FONT_SIZE = 40
-ATTRACTION_FONT_SIZE = 80
-ATTRACTION_PIXELS_BETWEEN_LINES = 15
-OTHER_FONT_SIZE = 25
-SET_ICON_SIZE = 40
-ILLUSTRATION_SIZE = 600
-BORDER_THICKNESS = 5
-BORDER_START_OFFSET = BORDER_THICKNESS - 1
-
-# PTL box (stands for Power/Toughness/Loyalty) is always the same dimension
-# And its lower right vertex is always the same distance from the card lower right vertex
-PTL_BOX_DIM = XY(175, 70)
-PTL_BOX_MARGIN = XY(25, 5)
-
-
-class PageFormat(Enum):
-    A4 = "a4paper"
-    LETTER = "letter"
 
 PAGE_SIZE: Dict[PageFormat, XY] = {
     PageFormat.A4: XY(h = int(8.25 * DPI), v = int(11.75 * DPI)),
     PageFormat.LETTER: XY(int(8.5 * DPI), int(11 * DPI)),
 }
 
-# Info about the card layout (how the lines are positioned to make the frame and various card sections)
-# Every layout has a NAME_LAYOUT Map[Map[int]] with info about
-# - the upper borders (BORDER) for different card sections (title, illustration, type line, rules box, other)
-# - the size for different card sections
-# - the vertical middle anchor for one-line text (title, type line)
-# There also is the position of the set icon, and the position of the PTL box
+class DrawSize():
+    def __init__(
+        self
+    ):
+        self.TITLE: int = 60
+        self.TYPE = 50
+        self.TEXT = 40
+        self.ATTRACTION = 80
+        self.ATTRACTION_INTERLINE = 15
+        self.CREDITS = 25
+        self.ICON = 40
+        # Image size for emblem and land 
+        self.IMAGE = 600
+        # Border thickness
+        self.BORDER = 5
+        # Distance between elements of a card
+        self.SEPARATOR = 15
 
-# Helper functions for layout
+DRAW_SIZE = DrawSize()
 
+BORDER_START_OFFSET = DRAW_SIZE.BORDER - 1
 
 def calcLayoutData(
-    layoutType: str,
-    bottom: int = CARD_V,
-    left: int = 0,
-    right: int = CARD_H,
-    rulesBoxSize: int = 0,
-):
-    """
-    Defines the layouts for all card types.
-    Layouts start with TITLE at 0, then it has
-    TITLE, ILLUSTRATION, TYPE_LINE, RULES_BOX and OTHER.
-    The illustration size is deduced from the card vertical size
-    (which depends on the layout type, for split it's the horizontal dim)
-    All the borders are calculated using the sizes
-    Almost all the sizes stay the same across layouts,
-    except for rules box size and illustration.
-    The text aligment is calculated using box size, only for PTL
-    - Adventure frames are weird because they don't start at 0
-    and don't have the OTHER line (also illustration is 0)
-    - Flip frames have the illustration at the bottom,
-    between the two halves of the card
-    - Fuse cards have another section (the fuse box),
-    which is specified at the end.
-    - Attractions have a box for numbers on the right
-    """
-    layout = Map[Map[int]](
-        BORDER=Map[int](
-            TITLE=0,
-            BOTTOM=bottom,
-            LEFT=left,
-            RIGHT=right
-        ),
-        SIZE=Map[int](
-            TITLE=90,
-            TYPE_LINE=50,
-            RULES_BOX=rulesBoxSize,
-            OTHER=40,
-            PTL_BOX_H=PTL_BOX_DIM[0],
-            PTL_BOX_V=PTL_BOX_DIM[1],
-        ),
-        FONT_MIDDLE=Map[int](),
-    )
-
-    if layoutType == LayoutType.ADV:
-        layout.BORDER.TITLE = STD_LAYOUT.BORDER.RULES_BOX
-        layout.SIZE.RULES_BOX = (
-            STD_LAYOUT.SIZE.RULES_BOX - layout.SIZE.TITLE - layout.SIZE.TYPE_LINE
-        )
-        layout.BORDER.BOTTOM = layout.BORDER.BOTTOM - layout.SIZE.OTHER
-        layout.SIZE.OTHER = 0
-
-    if layoutType == LayoutType.FLP:
-        layout.BORDER.TYPE_LINE = layout.BORDER.TITLE + layout.SIZE.TITLE
-        layout.BORDER.RULES_BOX = layout.BORDER.TYPE_LINE + layout.SIZE.TYPE_LINE
-        layout.BORDER.OTHER = layout.BORDER.RULES_BOX + layout.SIZE.RULES_BOX
-        layout.BORDER.ILLUSTRATION = layout.BORDER.OTHER + layout.SIZE.OTHER
-
-        layout.SIZE.ILLUSTRATION = layout.BORDER.BOTTOM - 2 * layout.BORDER.ILLUSTRATION
-
-        layout.BORDER.PTL_BOX_BOTTOM = layout.BORDER.ILLUSTRATION - PTL_BOX_MARGIN[1]
-
-    else:
-        layout.BORDER.ILLUSTRATION = layout.BORDER.TITLE + layout.SIZE.TITLE
-        layout.BORDER.OTHER = layout.BORDER.BOTTOM - layout.SIZE.OTHER
-        layout.BORDER.RULES_BOX = layout.BORDER.OTHER - layout.SIZE.RULES_BOX
-        layout.BORDER.TYPE_LINE = layout.BORDER.RULES_BOX - layout.SIZE.TYPE_LINE
-
-        layout.SIZE.ILLUSTRATION = layout.BORDER.TYPE_LINE - layout.BORDER.ILLUSTRATION
-
-        layout.BORDER.PTL_BOX_BOTTOM = layout.BORDER.BOTTOM - PTL_BOX_MARGIN[1]
-
-    layout.BORDER.PTL_BOX_RIGHT = layout.BORDER.RIGHT - PTL_BOX_MARGIN[0]
-    layout.BORDER.PTL_BOX_LEFT = layout.BORDER.PTL_BOX_RIGHT - layout.SIZE.PTL_BOX_H
-    layout.BORDER.PTL_BOX_TOP = layout.BORDER.PTL_BOX_BOTTOM - layout.SIZE.PTL_BOX_V
-
-    layout.SIZE.H = layout.BORDER.RIGHT - layout.BORDER.LEFT
-    layout.SIZE.V = layout.BORDER.BOTTOM - layout.BORDER.TITLE
-
-    layout.FONT_MIDDLE.PTL_H = layout.BORDER.PTL_BOX_LEFT + layout.SIZE.PTL_BOX_H // 2
-    layout.FONT_MIDDLE.PTL_V = layout.BORDER.PTL_BOX_TOP + layout.SIZE.PTL_BOX_V // 2
-
-    if layoutType == LayoutType.ATR:
-        layout.SIZE.ATTRACTION_SECTION_H = 100
-        layout.BORDER.ATTRACTION_SECTION_H = layout.BORDER.RIGHT - layout.SIZE.ATTRACTION_SECTION_H
-
-    if layoutType == LayoutType.SPL:
-        layout.SIZE.FUSE = 50
-        layout.BORDER.FUSE = layout.BORDER.OTHER - layout.SIZE.FUSE
-        layout.SIZE.RULES_BOX_FUSE = layout.SIZE.RULES_BOX - layout.SIZE.FUSE
-        layout.FONT_MIDDLE.FUSE = layout.BORDER.FUSE + layout.SIZE.FUSE // 2
-
-    return layout
-
-
-def calcIconPosition(layout: Layout) -> XY:
-    """
-    Returns the set icon position, given the layout and the right border of the card
-    """
-    return XY(
-        layout.BORDER.RIGHT - BORDER - SET_ICON_SIZE,
-        layout.BORDER.TYPE_LINE + (layout.SIZE.TYPE_LINE - SET_ICON_SIZE) // 2,
-    )
-
-
-def calcIllustrationPosition(layout: Layout) -> XY:
-    """
-    Returns the illustration position for basic lands and emblems
-    """
-    return XY(
-        (layout.BORDER.RIGHT - ILLUSTRATION_SIZE) // 2,
-        layout.BORDER.ILLUSTRATION
-        + (layout.SIZE.ILLUSTRATION - ILLUSTRATION_SIZE) // 2,
-    )
-
-
-def ptlTextPosition(box: Box) -> XY:
-    return (box[0] + box[1]).scale(0.5)
-
-
-# Standard layout (normal cards)
-STD_LAYOUT = calcLayoutData(layoutType=LayoutType.STD, rulesBoxSize=500)
-STD_SET_ICON_POSITION = calcIconPosition(layout=STD_LAYOUT)
-
-
-# Split layout (for split, fuse, and right half of aftermath)
-SPLIT_LAYOUT_LEFT = calcLayoutData(
-    layoutType=LayoutType.SPL, bottom=CARD_H, left=0, right=CARD_V // 2, rulesBoxSize=360
-)
-SPLIT_LAYOUT_RIGHT = calcLayoutData(
-    layoutType=LayoutType.SPL, bottom=CARD_H, left=CARD_V // 2, right=CARD_V, rulesBoxSize=360
-)
-SPLIT_SET_ICON_POSITION: List[XY] = [
-    calcIconPosition(layout=SPLIT_LAYOUT_LEFT),
-    calcIconPosition(layout=SPLIT_LAYOUT_RIGHT),
-]
-
-
-# Adventure layout (for the Adventure part of the card, the other one uses the standard layout)
-ADVENTURE_LAYOUT = calcLayoutData(
-    layoutType=LayoutType.ADV,
-    bottom=CARD_V,
-    left=0,
-    right=CARD_H // 2,
-)
-
-
-# Aftermath layout (for the upper half of aftermath)
-AFTERMATH_LAYOUT = calcLayoutData(
-    layoutType=LayoutType.AFT,
-    bottom=CARD_V // 2,
-    rulesBoxSize=175,
-)
-AFTERMATH_SET_ICON_POSITION = calcIconPosition(layout=AFTERMATH_LAYOUT)
-
-
-# Flip layout (Only one half is specified here, for the other just flip the card and redraw)
-FLIP_LAYOUT = calcLayoutData(
-    layoutType=LayoutType.FLP,
-    rulesBoxSize=200,
-)
-FLIP_SET_ICON_POSITION = calcIconPosition(layout=FLIP_LAYOUT)
-
-
-# Attraction cards layout (normal cards, but with attraction line)
-ATTRACTION_LAYOUT = calcLayoutData(layoutType=LayoutType.ATR, rulesBoxSize=500)
-
-
-# Textless land layout
-LAND_LAYOUT = calcLayoutData(layoutType=LayoutType.LND, rulesBoxSize=0)
-LAND_SET_ICON_POSITION = calcIconPosition(layout=LAND_LAYOUT)
-
-
-# Vanilla token layout (has one line for color indicator)
-TOKEN_LAYOUT = calcLayoutData(layoutType=TOKEN, rulesBoxSize=100)
-TOKEN_SET_ICON_POSITION = calcIconPosition(layout=TOKEN_LAYOUT)
-
-
-# Emblem and normal token layout (has more rules space)
-EMBLEM_LAYOUT = calcLayoutData(layoutType=EMBLEM, rulesBoxSize=250)
-EMBLEM_SET_ICON_POSITION = calcIconPosition(layout=EMBLEM_LAYOUT)
-
-TOKEN_ARC_WIDTH = 600
-LAND_MANA_SYMBOL_POSITION = calcIllustrationPosition(layout=LAND_LAYOUT)
-EMBLEM_SYMBOL_POSITION = calcIllustrationPosition(layout=EMBLEM_LAYOUT)
-
-LAYOUTS: DefaultDict[str, List[Layout]] = defaultdict(
-    lambda: [STD_LAYOUT],
-    {
-        LayoutType.SPL: [SPLIT_LAYOUT_LEFT, SPLIT_LAYOUT_RIGHT],
-        LayoutType.FUS: [SPLIT_LAYOUT_LEFT, SPLIT_LAYOUT_RIGHT],
-        LayoutType.AFT: [AFTERMATH_LAYOUT, SPLIT_LAYOUT_RIGHT],
-        LayoutType.FLP: [FLIP_LAYOUT, FLIP_LAYOUT],
-        LayoutType.ADV: [STD_LAYOUT, ADVENTURE_LAYOUT],
-        LayoutType.ATR: [ATTRACTION_LAYOUT],
-        LayoutType.LND: [LAND_LAYOUT],
-        TOKEN: [TOKEN_LAYOUT],
-        EMBLEM: [EMBLEM_LAYOUT],
-    },
-)
-
-SET_ICON_POSITIONS: DefaultDict[str, List[XY]] = defaultdict(
-    lambda: [STD_SET_ICON_POSITION],
-    {
-        LayoutType.SPL: SPLIT_SET_ICON_POSITION,
-        LayoutType.FUS: SPLIT_SET_ICON_POSITION,
-        LayoutType.AFT: [AFTERMATH_SET_ICON_POSITION, SPLIT_SET_ICON_POSITION[1]],
-        LayoutType.FLP: [FLIP_SET_ICON_POSITION, FLIP_SET_ICON_POSITION],
-        LayoutType.ADV: [STD_SET_ICON_POSITION, STD_SET_ICON_POSITION],
-        LayoutType.LND: [LAND_SET_ICON_POSITION],
-        TOKEN: [TOKEN_SET_ICON_POSITION],
-        EMBLEM: [EMBLEM_SET_ICON_POSITION],
-    },
-)
-
-def calc_layout_data(
     template: LayoutData,
-    layout_type: LayoutType,
+    layoutType: LayoutType,
     part: int = 0
-):
-    layout_data = deepcopy(template)
+) -> LayoutData:
+    """Calculates the card layout (how the lines are positioned
+    to make the frame and various card sections)
 
-    layout_data.LAYOUT_TYPE = layout_type
+    Every calculated layout has info about
+
+    - The layout type;
+
+    - The necessary rotation to view the card (or card part) correcly;
+    
+    - The borders for the different card sections
+    (whole card, image, type line, rules box, credits line).
+    Some sections only have the top border, while others have all the four sides;
+
+    - The corresponding section sizes;
+
+    - The vertical middle anchor for one-line text (type line);
+
+    - The card icon center position;
+
+    - The image top left position (for emblems and lands).
+    
+    While some of these values are hardcoded, others are calculated
+    such that the values are internally consistent."""
+    layoutData = deepcopy(template)
+
+    layoutData.LAYOUT_TYPE = layoutType
     
     # Aftermath second part is just a split card second part
-    if (layout_type == LayoutType.AFT and part == 1):
-        layout_type = LayoutType.SPL
+    if (layoutType == LayoutType.AFT and part == 1):
+        layoutType = LayoutType.SPL
     
-    if layout_type == LayoutType.SPL or layout_type == LayoutType.FUS:
-        layout_data.ROTATION = Rot.ROT_90
-        layout_data.BORDER.CARD.BOTTOM = CARD_H
-        layout_data.SIZE.RULES.VERT = 280
+    if layoutType == LayoutType.SPL or layoutType == LayoutType.FUS:
+        layoutData.ROTATION = (Image.ROTATE_90, Image.ROTATE_270)
+        layoutData.BORDER.CARD.BOTTOM = CARD_H
+        layoutData.SIZE.RULES.VERT = 280
 
         if (part == 0):
-            layout_data.BORDER.CARD.LEFT = 0
-            layout_data.BORDER.CARD.RIGHT = CARD_V // 2
+            layoutData.BORDER.CARD.LEFT = 0
+            layoutData.BORDER.CARD.RIGHT = CARD_V // 2
         else:
-            layout_data.BORDER.CARD.LEFT = CARD_V // 2
-            layout_data.BORDER.CARD.RIGHT = CARD_V
+            layoutData.BORDER.CARD.LEFT = CARD_V // 2
+            layoutData.BORDER.CARD.RIGHT = CARD_V
 
-    elif layout_type == LayoutType.AFT:
-        layout_data.BORDER.CARD.BOTTOM = CARD_V // 2
-        layout_data.SIZE.RULES.VERT = 175
+    elif layoutType == LayoutType.AFT:
+        layoutData.BORDER.CARD.BOTTOM = CARD_V // 2
+        layoutData.SIZE.RULES.VERT = 175
 
-    elif layout_type == LayoutType.ADV:
+    elif layoutType == LayoutType.ADV:
         if (part == 1):
-            layout_data.BORDER.CARD.RIGHT = CARD_H // 2
-            layout_data.BORDER.CARD.TOP = TEMPLATE_LAYOUT_DATA.BORDER.RULES.TOP
-            layout_data.BORDER.CARD.BOTTOM = TEMPLATE_LAYOUT_DATA.BORDER.RULES.BOTTOM
-            layout_data.SIZE.RULES.VERT = (
+            layoutData.BORDER.CARD.RIGHT = CARD_H // 2
+            layoutData.BORDER.CARD.TOP = TEMPLATE_LAYOUT_DATA.BORDER.RULES.TOP - BORDER_START_OFFSET
+            layoutData.BORDER.CARD.BOTTOM = TEMPLATE_LAYOUT_DATA.BORDER.RULES.BOTTOM
+            layoutData.SIZE.TITLE += BORDER_START_OFFSET
+            layoutData.SIZE.RULES.VERT = (
                 TEMPLATE_LAYOUT_DATA.SIZE.RULES.VERT
                 - template.SIZE.TITLE
                 - template.SIZE.TYPE
             )
-            layout_data.SIZE.CREDITS = 0
+            layoutData.SIZE.CREDITS = 0
 
-    elif layout_type == LayoutType.FLP:
-        layout_data.SIZE.RULES.VERT = 200
+    elif layoutType == LayoutType.FLP:
+        layoutData.SIZE.RULES.VERT = 200
         if (part == 1):
-            layout_data.ROTATION = Rot.ROT_180
+            layoutData.ROTATION = (Image.ROTATE_180, Image.ROTATE_180)
 
-    elif layout_type == LayoutType.LND:
-        layout_data.SIZE.RULES.VERT = 0
+    elif layoutType == LayoutType.LND or layoutType == LayoutType.VCR:
+        layoutData.SIZE.RULES.VERT = 0
 
-    elif layout_type == LayoutType.VTK:
-        layout_data.SIZE.RULES.VERT = 90
+    elif layoutType == LayoutType.VTK:
+        layoutData.SIZE.RULES.VERT = 90
 
-    elif layout_type == LayoutType.TOK or layout_type == LayoutType.EMB:
-        layout_data.SIZE.RULES.VERT = 250
+    elif layoutType == LayoutType.TOK or layoutType == LayoutType.EMB:
+        layoutData.SIZE.RULES.VERT = 250
 
     else:
-        layout_data.SIZE.RULES.VERT = 500
+        layoutData.SIZE.RULES.VERT = 500
 
     # Default borders for rules box
-    layout_data.BORDER.RULES.LEFT = layout_data.BORDER.CARD.LEFT
-    layout_data.BORDER.RULES.RIGHT = layout_data.BORDER.CARD.RIGHT
+    layoutData.BORDER.RULES.LEFT = layoutData.BORDER.CARD.LEFT
+    layoutData.BORDER.RULES.RIGHT = layoutData.BORDER.CARD.RIGHT
 
     # Calculating sizes
-    layout_data.SIZE.CARD.HORIZ = layout_data.BORDER.CARD.RIGHT - layout_data.BORDER.CARD.LEFT
-    layout_data.SIZE.CARD.VERT = layout_data.BORDER.CARD.BOTTOM - layout_data.BORDER.CARD.TOP
-    layout_data.SIZE.RULES.HORIZ = layout_data.BORDER.RULES.RIGHT - layout_data.BORDER.RULES.LEFT
-
-    # Calculating PTL box borders
-    layout_data.BORDER.PTL_BOX.BOTTOM = (
-        layout_data.BORDER.CREDITS + layout_data.SIZE.CREDITS
-        - PTL_BOX_MARGIN[1]
-    )
-    layout_data.BORDER.PTL_BOX.TOP = layout_data.BORDER.PTL_BOX.BOTTOM - layout_data.SIZE.PTL_BOX.VERT
-    layout_data.BORDER.PTL_BOX.RIGHT = layout_data.BORDER.RULES.RIGHT - PTL_BOX_MARGIN[0]
-    layout_data.BORDER.PTL_BOX.LEFT = layout_data.BORDER.PTL_BOX.RIGHT - layout_data.SIZE.PTL_BOX.HORIZ
-    # Calculating PTL font position
-    layout_data.FONT_MIDDLE.PTL_H = layout_data.BORDER.PTL_BOX.LEFT + layout_data.SIZE.PTL_BOX.HORIZ // 2
-    layout_data.FONT_MIDDLE.PTL_V = layout_data.BORDER.PTL_BOX.TOP + layout_data.SIZE.PTL_BOX.VERT // 2
+    layoutData.SIZE.CARD.HORIZ = layoutData.BORDER.CARD.RIGHT - layoutData.BORDER.CARD.LEFT
+    layoutData.SIZE.CARD.VERT = layoutData.BORDER.CARD.BOTTOM - layoutData.BORDER.CARD.TOP
+    layoutData.SIZE.RULES.HORIZ = layoutData.BORDER.RULES.RIGHT - layoutData.BORDER.RULES.LEFT
 
     other_sizes: int = (
-        layout_data.SIZE.TITLE
-        + layout_data.SIZE.TYPE
-        + layout_data.SIZE.RULES.VERT
-        + layout_data.SIZE.CREDITS
+        layoutData.SIZE.TITLE
+        + layoutData.SIZE.TYPE
+        + layoutData.SIZE.RULES.VERT
+        + layoutData.SIZE.CREDITS
     )
 
-    if (layout_type == LayoutType.FLP):
+    if (layoutType == LayoutType.FLP):
         # Image size (which is calculated in a different way, since we have two of everything else)
-        layout_data.SIZE.IMAGE = layout_data.BORDER.CARD.BOTTOM - 2 * other_sizes
+        layoutData.SIZE.IMAGE = layoutData.SIZE.CARD.VERT - 2 * other_sizes
         # All borders
-        layout_data.BORDER.TYPE = layout_data.BORDER.CARD.TOP + layout_data.SIZE.TITLE
-        layout_data.BORDER.RULES.TOP = layout_data.BORDER.TYPE + layout_data.SIZE.TYPE
-        layout_data.BORDER.RULES.BOTTOM = layout_data.BORDER.RULES.TOP + layout_data.SIZE.RULES.VERT
-        layout_data.BORDER.CREDITS = layout_data.BORDER.RULES.BOTTOM
-        layout_data.BORDER.IMAGE = layout_data.BORDER.CREDITS + layout_data.SIZE.CREDITS
+        layoutData.BORDER.TYPE = layoutData.BORDER.CARD.TOP + layoutData.SIZE.TITLE
+        layoutData.BORDER.RULES.TOP = layoutData.BORDER.TYPE + layoutData.SIZE.TYPE
+        layoutData.BORDER.RULES.BOTTOM = layoutData.BORDER.RULES.TOP + layoutData.SIZE.RULES.VERT
+        layoutData.BORDER.CREDITS = layoutData.BORDER.RULES.BOTTOM
+        layoutData.BORDER.IMAGE = layoutData.BORDER.CREDITS + layoutData.SIZE.CREDITS
     else:
         # Image size
-        layout_data.SIZE.IMAGE = layout_data.BORDER.CARD.BOTTOM - other_sizes
+        layoutData.SIZE.IMAGE = layoutData.SIZE.CARD.VERT - other_sizes
         # All borders
-        layout_data.BORDER.IMAGE = layout_data.BORDER.CARD.TOP + layout_data.SIZE.TITLE
-        layout_data.BORDER.TYPE = layout_data.BORDER.IMAGE + layout_data.SIZE.IMAGE
-        layout_data.BORDER.RULES.TOP = layout_data.BORDER.TYPE + layout_data.SIZE.TYPE
-        layout_data.BORDER.RULES.BOTTOM = layout_data.BORDER.RULES.TOP + layout_data.SIZE.RULES.VERT
-        layout_data.BORDER.CREDITS = layout_data.BORDER.RULES.BOTTOM
+        layoutData.BORDER.IMAGE = layoutData.BORDER.CARD.TOP + layoutData.SIZE.TITLE
+        layoutData.BORDER.TYPE = layoutData.BORDER.IMAGE + layoutData.SIZE.IMAGE
+        layoutData.BORDER.RULES.TOP = layoutData.BORDER.TYPE + layoutData.SIZE.TYPE
+        layoutData.BORDER.RULES.BOTTOM = layoutData.BORDER.RULES.TOP + layoutData.SIZE.RULES.VERT
+        layoutData.BORDER.CREDITS = layoutData.BORDER.RULES.BOTTOM
+
+    
+    # Calculating PTL box borders
+    layoutData.BORDER.PTL_BOX.BOTTOM = (
+        # We are not using BORDER.CARD.BOTTOM because it does not work
+        # for flip cards (for that it would be BORDER.IMAGE)
+        layoutData.BORDER.CREDITS + layoutData.SIZE.CREDITS - 5 # Box is 5 pixels up
+    )
+    layoutData.BORDER.PTL_BOX.TOP = layoutData.BORDER.PTL_BOX.BOTTOM - layoutData.SIZE.PTL_BOX.VERT
+    layoutData.BORDER.PTL_BOX.RIGHT = layoutData.BORDER.RULES.RIGHT - 25 # Box is 25 pixels left
+    layoutData.BORDER.PTL_BOX.LEFT = layoutData.BORDER.PTL_BOX.RIGHT - layoutData.SIZE.PTL_BOX.HORIZ
+    # Calculating PTL font position
+    layoutData.FONT_MIDDLE.PTL_H = layoutData.BORDER.PTL_BOX.LEFT + layoutData.SIZE.PTL_BOX.HORIZ // 2
+    layoutData.FONT_MIDDLE.PTL_V = layoutData.BORDER.PTL_BOX.TOP + layoutData.SIZE.PTL_BOX.VERT // 2
 
     # Layouts needing adjustments to rules box or non-standard sections
     # Main adventure part has the other part on the left
-    if (layout_type == LayoutType.ADV and part == 0):
-        layout_data.SIZE.RULES.HORIZ //= 2
-        layout_data.BORDER.RULES.LEFT = layout_data.BORDER.RULES.RIGHT - layout_data.SIZE.RULES.HORIZ
+    if (layoutType == LayoutType.ADV and part == 0):
+        layoutData.SIZE.RULES.HORIZ //= 2
+        layoutData.BORDER.RULES.LEFT = layoutData.BORDER.RULES.RIGHT - layoutData.SIZE.RULES.HORIZ
     # Fuse layouts have the Fuse section under the rules box
-    elif (layout_type == LayoutType.FUS):
-        layout_data.SIZE.FUSE = SizeData(
+    elif (layoutType == LayoutType.FUS):
+        layoutData.SIZE.FUSE = _SizeData(
             HORIZ = CARD_V,
             VERT = 50,
         )
-        layout_data.BORDER.RULES.BOTTOM -= layout_data.SIZE.FUSE.VERT
-        layout_data.SIZE.RULES.VERT -= layout_data.SIZE.FUSE.VERT
-        layout_data.BORDER.FUSE = BorderData(
-            TOP = layout_data.BORDER.RULES.BOTTOM,
-            BOTTOM = layout_data.BORDER.RULES.BOTTOM + layout_data.SIZE.FUSE.VERT,
+        layoutData.BORDER.RULES.BOTTOM -= layoutData.SIZE.FUSE.VERT
+        layoutData.SIZE.RULES.VERT -= layoutData.SIZE.FUSE.VERT
+        layoutData.BORDER.FUSE = _BorderData(
+            TOP = layoutData.BORDER.RULES.BOTTOM,
+            BOTTOM = layoutData.BORDER.RULES.BOTTOM + layoutData.SIZE.FUSE.VERT,
             LEFT = 0,
             RIGHT = CARD_V
         )
-        layout_data.FONT_MIDDLE.FUSE_V = layout_data.BORDER.FUSE.TOP +  layout_data.SIZE.FUSE.VERT // 2
+        layoutData.FONT_MIDDLE.FUSE_V = layoutData.BORDER.FUSE.TOP +  layoutData.SIZE.FUSE.VERT // 2
     # Attractions have the number box on the right
-    elif (layout_type == LayoutType.ATR):
-        layout_data.SIZE.ATTRACTION = SizeData(
+    elif (layoutType == LayoutType.ATR):
+        layoutData.SIZE.ATTRACTION = _SizeData(
             HORIZ = 100,
-            VERT = layout_data.SIZE.RULES.HORIZ
+            VERT = layoutData.SIZE.RULES.HORIZ
         )
-        layout_data.BORDER.RULES.RIGHT -= layout_data.SIZE.ATTRACTION.HORIZ
-        layout_data.SIZE.RULES.HORIZ -= layout_data.SIZE.ATTRACTION.HORIZ
-        layout_data.BORDER.ATTRACTION = BorderData(
-            TOP = layout_data.BORDER.RULES.TOP,
-            BOTTOM = layout_data.BORDER.RULES.BOTTOM,
-            LEFT = layout_data.BORDER.RULES.RIGHT,
-            RIGHT = layout_data.BORDER.CARD.RIGHT,
+        layoutData.BORDER.RULES.RIGHT -= layoutData.SIZE.ATTRACTION.HORIZ
+        layoutData.SIZE.RULES.HORIZ -= layoutData.SIZE.ATTRACTION.HORIZ
+        layoutData.BORDER.ATTRACTION = _BorderData(
+            TOP = layoutData.BORDER.RULES.TOP - BORDER_START_OFFSET,
+            BOTTOM = layoutData.BORDER.RULES.BOTTOM,
+            LEFT = layoutData.BORDER.RULES.RIGHT,
+            RIGHT = layoutData.BORDER.CARD.RIGHT,
         )
-        layout_data.FONT_MIDDLE.ATTRACTION_H = layout_data.BORDER.ATTRACTION.LEFT +  layout_data.SIZE.ATTRACTION.HORIZ // 2
+        layoutData.FONT_MIDDLE.ATTRACTION_H = layoutData.BORDER.ATTRACTION.LEFT +  layoutData.SIZE.ATTRACTION.HORIZ // 2
+
+    layoutData.ICON_CENTER = XY(
+        h = layoutData.BORDER.CARD.RIGHT - DRAW_SIZE.SEPARATOR - DRAW_SIZE.ICON // 2,
+        v = layoutData.BORDER.TYPE + layoutData.SIZE.TYPE // 2,
+    )
+
+    if layoutType in [LayoutType.LND, LayoutType.EMB]:
+        layoutData.IMAGE_POSITION = XY(
+            (layoutData.BORDER.CARD.RIGHT - DRAW_SIZE.IMAGE) // 2,
+            layoutData.BORDER.IMAGE + (layoutData.SIZE.IMAGE - DRAW_SIZE.IMAGE) // 2,
+        )
     
-    return layout_data
+    return layoutData
 
 
-TEMPLATE_LAYOUT_DATA: LayoutData = calc_layout_data(
+TEMPLATE_LAYOUT_DATA: LayoutData = calcLayoutData(
     template=LayoutData(
         # -1 (or not present) means that the value is calculated
-        ROTATION = Rot.ROT_0,
-        BORDER = Border(
+        ROTATION = None,
+        BORDER = _Border(
             # Most borders, except for card borders,
             # are calculated based on sizes
-            CARD = BorderData(
+            CARD = _BorderData(
                 LEFT = 0,
                 RIGHT = CARD_H,
                 TOP = 0,
                 BOTTOM = CARD_V
             ),
         ),
-        SIZE = Size(
+        SIZE = _Size(
             # The only sizes that are calculated are
             # Card sizes (based on borders)
             # Rules horizontal size (usually based on card size)
             # and image size (based on all the other sizes)
-            CARD = SizeData(),
+            CARD = _SizeData(),
             TITLE = 90,
             IMAGE = -1,
             TYPE = 50,
-            RULES = SizeData(),
-            PTL_BOX = SizeData(
+            RULES = _SizeData(),
+            PTL_BOX = _SizeData(
                 HORIZ = 175,
                 VERT = 70,
             ),
             CREDITS = 40,
         ),
-        FONT_MIDDLE = FontMiddle()
+        FONT_MIDDLE = _FontMiddle()
     ),
-    layout_type=LayoutType.STD
+    layoutType=LayoutType.STD
 )
 
 LAYOUT_DATA: Dict[LayoutType, List[LayoutData]] = {}
 
-for layout_type in LayoutType:
-    if layout_type in LAYOUT_TYPES_TWO_PARTS:
-        LAYOUT_DATA[layout_type] = [calc_layout_data(
+for _layoutType in LayoutType:
+    if _layoutType in [*LAYOUT_TYPES_TWO_PARTS, *LAYOUT_TYPES_DF]:
+        LAYOUT_DATA[_layoutType] = [calcLayoutData(
             template=TEMPLATE_LAYOUT_DATA,
-            layout_type=layout_type,
+            layoutType=_layoutType,
             part=i
         ) for i in range(2)]
     else:
-        LAYOUT_DATA[layout_type] = [calc_layout_data(
+        LAYOUT_DATA[_layoutType] = [calcLayoutData(
             template=TEMPLATE_LAYOUT_DATA,
-            layout_type=layout_type
+            layoutType=_layoutType
         )]
 
-
-def calc_icon_position(layout_type: LayoutType, part: int = 0) -> XY:
-    """
-    Returns the set icon top left position,
-    given the layout type and the layout part
-    """
-    layout_data = LAYOUT_DATA[layout_type][part]
-    return XY(
-        h = layout_data.BORDER.CARD.RIGHT - BORDER - SET_ICON_SIZE,
-        v = layout_data.BORDER.TYPE + (layout_data.SIZE.TYPE - SET_ICON_SIZE) // 2,
-    )
-
-ICON_POSITIONS: Dict[LayoutType, List[XY]] = {}
-
-for layout_type in LayoutType:
-    if layout_type in LAYOUT_TYPES_TWO_PARTS:
-        ICON_POSITIONS[layout_type] = [calc_icon_position(
-            layout_type=layout_type,
-            part=i
-        ) for i in range(2)]
-    else:
-        ICON_POSITIONS[layout_type] = [calc_icon_position(
-            layout_type=layout_type
-        )]
+TOKEN_ARC_WIDTH: int = 600

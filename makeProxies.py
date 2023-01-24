@@ -1,9 +1,10 @@
 from __future__ import annotations
-from typing import Optional
+from typing import List, Tuple, Optional
 from scrython import Search, ScryfallError
 from PIL import Image
 from tqdm import tqdm
 from pathlib import Path
+from textwrap import dedent
 import pickle
 import re
 import os
@@ -35,7 +36,12 @@ def deduplicateTokenResults(query: str, results: list[Card]) -> list[Card]:
             and card.type_line != "Token"
             and card.type_line != ""
         ):
-            index = f"{card.name}\n{card.type_line}\n{sorted(card.colors)}\n{card.oracle_text}"
+            index = dedent( f"""\
+                {card.name}
+                {card.type_line}
+                {sorted(c.value for c in card.colors)}
+                {card.oracle_text}"""
+            )
             # There are multiple tokens which differ only by power/toughness
             # So we have to include this info when deduplicating
             if card.hasPT():
@@ -45,13 +51,13 @@ def deduplicateTokenResults(query: str, results: list[Card]) -> list[Card]:
     return list(deduplicatedList.values())
 
 
-def searchToken(tokenName: str, tokenType: str = C.TOKEN) -> list[Card]:
+def searchToken(tokenName: str, tokenType: str = C.LayoutType.TOK.value) -> list[Card]:
     """
     Searches a token/emblem info based on their name.
     Returns a list of deduplicated tokens corresponding to the name,
     or the empty list if no tokens were found.
     """
-    if tokenType == C.EMBLEM:
+    if tokenType == C.LayoutType.EMB.value:
         exactName = f"{tokenName} Emblem"
     else:
         exactName = tokenName
@@ -94,7 +100,7 @@ def parseToken(text: str, name: Optional[str] = None) -> Card:
         power = None
         toughness = None
 
-    colors = [color for color in data.pop(0).upper() if color != C.MTG_COLORLESS]
+    colors = [color for color in data.pop(0).upper() if color in C.ManaColors.values()]
 
     typesOrSubtypesList = [word.strip().title() for word in data[0].split()]
     maybeTypesList = [word.strip().title() for word in data[1].split()]
@@ -128,7 +134,6 @@ def parseToken(text: str, name: Optional[str] = None) -> Card:
         "type_line": type_line,
         "name": name,
         "colors": colors,
-        "layout": C.LayoutType.TOK.value,
         "mana_cost": "",
     }
 
@@ -266,7 +271,7 @@ def loadCards(
         else:
             print(f"{cardName} not in cache. searching...")
             try:
-                cardData: Card = Card(name=cardName)
+                cardData: Card = Card.from_name(cardName)
             except ScryfallError as err:
                 print(f"Skipping {cardName}. {err}")
                 continue
@@ -309,6 +314,73 @@ def loadCards(
         pickle.dump(tokenCache, p)
 
     return (cardsInDeck, flavorNames)
+
+# Paging
+
+
+def batchSpacing(
+    n: int,
+    batchSize: Tuple[int, int],
+    pageSize: C.XY,
+    cardSize: C.XY,
+    noCardSpace: bool = False,
+) -> Tuple[int, int]:
+    cardDistance = 1 if noCardSpace else C.CARD_DISTANCE
+    maxH = pageSize[0] - (cardDistance + (cardSize.h + cardDistance) * batchSize[0])
+    maxV = pageSize[1] - (cardDistance + (cardSize.v + cardDistance) * batchSize[1])
+    return (
+        maxH // 2 + cardDistance + (cardSize.h + cardDistance) * (n % batchSize[0]),
+        maxV // 2 + cardDistance + (cardSize.v + cardDistance) * (n // batchSize[0]),
+    )
+
+
+def savePages(
+    images: List[Image.Image],
+    deckName: str,
+    small: bool = False,
+    pageFormat: C.PageFormat = C.PageFormat.A4,
+    noCardSpace: bool = False,
+) -> None:
+    outputFolder = Path(f"output/{deckName}/")
+    os.makedirs(outputFolder, exist_ok=True)
+    pageHoriz = False
+    cardSize = C.CARD_SIZE
+    if not small:
+        batchSize = (3, 3)
+    else:
+        batchSize = (4, 4)
+
+    batchNum = batchSize[0] * batchSize[1]
+
+    pageSize = C.PAGE_SIZE[pageFormat]
+
+    if small:
+        cardSize = C.SMALL_CARD_SIZE
+        images = [image.resize(cardSize) for image in images]
+
+    if pageHoriz:
+        pageSize = pageSize.transpose()
+
+    for k in tqdm(
+        range(0, len(images), batchNum),
+        desc="Pagination progress: ",
+        unit="page",
+    ):
+        batch = images[k : k + batchNum]
+        page = Image.new("RGB", size=pageSize, color="white")
+        for i in range(len(batch)):
+            page.paste(
+                batch[i],
+                batchSpacing(
+                    i,
+                    batchSize=batchSize,
+                    pageSize=pageSize,
+                    cardSize=cardSize,
+                    noCardSpace=noCardSpace,
+                ),
+            )
+
+        page.save(outputFolder / f"{k // batchNum + 1:02}.png", "PNG")
 
 
 if __name__ == "__main__":
@@ -380,20 +452,19 @@ if __name__ == "__main__":
         "--no-acorn-stamp",
         action="store_false",
         dest="useAcornSymbol",
-        help="do not print the acorn symbol on non tournament legal cards"
+        help="do not print the acorn symbol on non tournament legal cards",
     )
 
     args = parser.parse_args()
 
-    decklistPath: Path = Path(args.decklistPath)
+    decklistPath = Path(args.decklistPath)
 
-    deckName = decklistPath.stem
     if args.setIconPath:
         setIcon = drawUtil.resizeSetIcon(Image.open(args.setIconPath).convert("RGBA"))
     else:
         setIcon = None
 
-    allCards, flavorNames = loadCards(
+    (allCards, flavorNames) = loadCards(
         fileLoc=decklistPath,
         ignoreBasicLands=args.ignoreBasicLands,
         alternativeFrames=args.alternativeFrames,
@@ -415,9 +486,10 @@ if __name__ == "__main__":
             unit="card",
         )
     ]
-    drawUtil.savePages(
+    
+    savePages(
         images=images,
-        deckName=deckName,
+        deckName=decklistPath.stem,
         small=args.small,
         pageFormat=args.pageFormat,
         noCardSpace=args.noCardSpace,
