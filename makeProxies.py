@@ -12,7 +12,7 @@ import argparse
 
 import bwproxy.drawUtil as drawUtil
 import bwproxy.projectConstants as C
-from bwproxy.projectTypes import Card, Deck, Flavor
+from bwproxy.projectTypes import Card, LayoutCard, Flavor
 
 
 def deduplicateTokenResults(query: str, results: list[Card]) -> list[Card]:
@@ -157,7 +157,7 @@ def loadCards(
     requestedCards: str | None = None,
     ignoreBasicLands: bool = False,
     alternativeFrames: bool = False
-) -> tuple[Deck, Flavor]:
+) -> tuple[List[LayoutCard], Flavor]:
     """
     Search the requested cards' data. The requested data can be specified
     via file or via plaintext string
@@ -185,7 +185,7 @@ def loadCards(
     if requestedCards is None or requestedCards == "":
         raise ValueError("Missing file location and requested cards plaintext info")
 
-    cardsInDeck: Deck = []
+    cardsInDeck: List[LayoutCard] = []
     flavorNames: Flavor = {}
 
     # This regex searches for // at the beginning of the line,
@@ -228,7 +228,7 @@ def loadCards(
         if cardNameMatch:
             cardName = cardNameMatch.groups()[0]
         else:
-            raise Exception(f"No card name found in line {line}")
+            raise Exception(f"No card name found in line {line}.")
 
         if ignoreBasicLands and cardName in C.BASIC_LANDS:
             print(
@@ -251,18 +251,19 @@ def loadCards(
                 tokenList = searchToken(tokenName=cardName, tokenType=tokenType)
 
                 if len(tokenList) == 0:
-                    print(f"Skipping {cardName}. No corresponding tokens found")
+                    print(f"Skipping {cardName}. No corresponding tokens found.")
                     continue
                 if len(tokenList) > 1:
                     print(
-                        f"Skipping {cardName}. Too many tokens found. Consider specifying the token info in the input file"
+                        f"Skipping {cardName}. Too many tokens found. Consider specifying the token info in the input file."
                     )
                     continue
                 tokenData = tokenList[0]
+                print(f"Token {tokenData.name} found!")
 
             tokenCache[cardName] = tokenData
             for _ in range(cardCount):
-                cardsInDeck.append(tokenData)
+                cardsInDeck.append(LayoutCard(tokenData, alternativeFrames))
             continue
 
         if cardName in cardCache:
@@ -276,7 +277,7 @@ def loadCards(
                 print(f"Skipping {cardName}. {err}")
                 continue
 
-            print(f"Card found! {cardData.name}")
+            print(f"Card {cardData.name} found!")
             cardCache[cardName] = cardData
 
         if ignoreBasicLands and cardData.name in C.BASIC_LANDS:
@@ -292,18 +293,16 @@ def loadCards(
             flavorName = flavorNameMatch.groups()[0]
             flavorNames[cardData.name] = flavorName
 
-        if (
-            cardData.layout in C.LAYOUT_TYPES_DF or (
-                cardData.layout == C.LayoutType.FLP and alternativeFrames
-            )
-        ):
-            facesData = cardData.card_faces
+        layoutCardData = LayoutCard(cardData, alternativeFrames)
+
+        if layoutCardData.layout in C.LAYOUT_TYPES_DF:
+            facesData = layoutCardData.faces
             for _ in range(cardCount):
                 cardsInDeck.append(facesData[0])
                 cardsInDeck.append(facesData[1])
         else:
             for _ in range(cardCount):
-                cardsInDeck.append(cardData)
+                cardsInDeck.append(layoutCardData)
 
     os.makedirs(os.path.dirname(C.CACHE_LOC), exist_ok=True)
     with open(C.CACHE_LOC, "wb") as p:
@@ -400,8 +399,8 @@ if __name__ == "__main__":
     parser.add_argument(
         "--page-format",
         "-p",
-        default=C.PageFormat.A4,
-        choices=C.PageFormat,
+        default=C.PageFormat.A4.value,
+        choices=list(C.PageFormat.values()),
         dest="pageFormat",
         help="printing page format",
     )
@@ -458,6 +457,7 @@ if __name__ == "__main__":
     args = parser.parse_args()
 
     decklistPath = Path(args.decklistPath)
+    pageFormat = C.PageFormat(args.pageFormat)
 
     if args.setIconPath:
         setIcon = drawUtil.resizeSetIcon(Image.open(args.setIconPath).convert("RGBA"))
@@ -472,15 +472,14 @@ if __name__ == "__main__":
     
     images = [
         drawUtil.drawCard(
-            card=card,
+            layoutCard=layoutCard,
             setIcon=setIcon,
             flavorNames=flavorNames,
             isColored=args.color,
             useTextSymbols=args.useTextSymbols,
             fullArtLands=args.fullArtLands,
-            alternativeFrames=args.alternativeFrames,
             useAcornSymbol=args.useAcornSymbol
-        ) for card in tqdm(
+        ) for layoutCard in tqdm(
             allCards,
             desc="Card drawing progress: ",
             unit="card",
@@ -491,6 +490,6 @@ if __name__ == "__main__":
         images=images,
         deckName=decklistPath.stem,
         small=args.small,
-        pageFormat=args.pageFormat,
+        pageFormat=pageFormat,
         noCardSpace=args.noCardSpace,
     )

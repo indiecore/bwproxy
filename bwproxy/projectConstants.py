@@ -307,6 +307,11 @@ class PageFormat(Enum):
     A4 = "a4paper"
     LETTER = "letter"
 
+    @classmethod
+    def values(cls) -> Iterable[str]:
+        for x in cls:
+            yield x.value
+
 WHITE = (255, 255, 255)
 BLACK = (0, 0, 0)
 DPI = 300
@@ -331,7 +336,7 @@ class DrawSize():
         self.TEXT = 40
         self.ATTRACTION = 80
         self.ATTRACTION_INTERLINE = 15
-        self.CREDITS = 25
+        self.CREDITS = 30
         self.ICON = 40
         # Image size for emblem and land 
         self.IMAGE = 600
@@ -342,7 +347,10 @@ class DrawSize():
 
 DRAW_SIZE = DrawSize()
 
+# Since the borders in the layout are offset when asking for the bottom line,
+# We need these values in order to properly center text and align borders
 BORDER_START_OFFSET = DRAW_SIZE.BORDER - 1
+BORDER_CENTER_OFFSET = DRAW_SIZE.BORDER // 2
 
 def calcLayoutData(
     template: LayoutData,
@@ -414,11 +422,8 @@ def calcLayoutData(
         if (part == 1):
             layoutData.ROTATION = (Image.ROTATE_180, Image.ROTATE_180)
 
-    elif layoutType == LayoutType.LND or layoutType == LayoutType.VCR:
+    elif layoutType in [LayoutType.LND, LayoutType.VCR, LayoutType.VTK]:
         layoutData.SIZE.RULES.VERT = 0
-
-    elif layoutType == LayoutType.VTK:
-        layoutData.SIZE.RULES.VERT = 90
 
     elif layoutType == LayoutType.TOK or layoutType == LayoutType.EMB:
         layoutData.SIZE.RULES.VERT = 250
@@ -466,14 +471,14 @@ def calcLayoutData(
     layoutData.BORDER.PTL_BOX.BOTTOM = (
         # We are not using BORDER.CARD.BOTTOM because it does not work
         # for flip cards (for that it would be BORDER.IMAGE)
-        layoutData.BORDER.CREDITS + layoutData.SIZE.CREDITS - 5 # Box is 5 pixels up
+        layoutData.BORDER.CREDITS + layoutData.SIZE.CREDITS
     )
     layoutData.BORDER.PTL_BOX.TOP = layoutData.BORDER.PTL_BOX.BOTTOM - layoutData.SIZE.PTL_BOX.VERT
     layoutData.BORDER.PTL_BOX.RIGHT = layoutData.BORDER.RULES.RIGHT - 25 # Box is 25 pixels left
     layoutData.BORDER.PTL_BOX.LEFT = layoutData.BORDER.PTL_BOX.RIGHT - layoutData.SIZE.PTL_BOX.HORIZ
     # Calculating PTL font position
     layoutData.FONT_MIDDLE.PTL_H = layoutData.BORDER.PTL_BOX.LEFT + layoutData.SIZE.PTL_BOX.HORIZ // 2
-    layoutData.FONT_MIDDLE.PTL_V = layoutData.BORDER.PTL_BOX.TOP + layoutData.SIZE.PTL_BOX.VERT // 2
+    layoutData.FONT_MIDDLE.PTL_V = layoutData.BORDER.PTL_BOX.TOP + layoutData.SIZE.PTL_BOX.VERT // 2 + BORDER_CENTER_OFFSET
 
     # Layouts needing adjustments to rules box or non-standard sections
     # Main adventure part has the other part on the left
@@ -547,13 +552,13 @@ TEMPLATE_LAYOUT_DATA: LayoutData = calcLayoutData(
             CARD = _SizeData(),
             TITLE = 90,
             IMAGE = -1,
-            TYPE = 50,
+            TYPE = 55,
             RULES = _SizeData(),
             PTL_BOX = _SizeData(
-                HORIZ = 175,
-                VERT = 70,
+                HORIZ = 160,
+                VERT = 60,
             ),
-            CREDITS = 40,
+            CREDITS = 55,
         ),
         FONT_MIDDLE = _FontMiddle()
     ),

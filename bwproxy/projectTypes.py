@@ -56,23 +56,13 @@ class Card:
             self.data["name"] = self.data["name"].replace(" Emblem", "")
 
         if "Token" in self.type_line:
-            if self.isTwoParts():
-                self.data["layout"] = C.LayoutType.TOK.value
-            else:
-                if self.oracle_text == "":
-                    self.data["layout"] = C.LayoutType.VTK.value
-                else:
-                    self.data["layout"] = C.LayoutType.TOK.value
-                
-                if len(self.colors) > 0:
-                    self.data["color_indicator"] = self.colors
+            self.data["layout"] = C.LayoutType.TOK.value
+            # I HATE double faced tokens
+            if not self.isTwoParts() and len(self.colors) > 0:
+                self.data["color_indicator"] = self.colors
 
         if self.name in C.BASIC_LANDS:
             self.data["layout"] = C.LayoutType.LND.value
-
-        if not self.isTwoParts() and not self.isTokenOrEmblem() and self.oracle_text == "":
-            self.data["layout"] = C.LayoutType.VCR.value
-
 
         # Setting non-standard layouts (attraction, fuse, aftermath)
         
@@ -130,7 +120,10 @@ class Card:
 
     @property
     def color_indicator(self) -> List[C.ManaColors]:
-        return [C.ManaColors(c) for c in self._getKey("color_indicator")]
+        if self._hasKey("color_indicator"):
+            return [C.ManaColors(c) for c in self._getKey("color_indicator")]
+        else:
+            return []
 
     @property
     def mana_cost(self) -> str:
@@ -243,7 +236,7 @@ class Card:
             (
                 self.layout in [C.LayoutType.FLP, *C.LAYOUT_TYPES_DF]
                 and self._hasKey("face_num")
-            ) or not self.isAcorn()
+            ) or self.isAcorn()
         ):
             raise AttributeError(f"Card {self.name} has no face symbol")
         if self.isAcorn():
@@ -269,34 +262,6 @@ class Card:
             raise AttributeError(f"Cannot ask for face number of single card {self.name}")
         return self._getKey("face_num")
 
-    @property
-    def color_indicator_reminder_text(self) -> str:
-        """
-        How the color indicator would appear if written out.
-
-        This is used instead of a colored dot, since the proxies are in black and white.
-        """
-        try:
-            cardColorIndicator = self.color_indicator
-        except:
-            return ""
-
-        if len(cardColorIndicator) == 5:
-            colorIndicatorText = "all colors"
-        else:
-            colorIndicatorNames = [c.name.lower() for c in cardColorIndicator]
-            if len(colorIndicatorNames) == 1:
-                colorIndicatorText = colorIndicatorNames[0]
-            else:
-                colorIndicatorText = f'{", ".join(colorIndicatorNames[:-1])} and {colorIndicatorNames[-1]}'
-        
-        if self.isToken() and self.name in self.type_line:
-            name = "This token"
-        else:
-            name = self.name
-
-        return f"({name} is {colorIndicatorText}.)\n"
-
     def hasPT(self) -> bool:
         return self._hasKey("power")
 
@@ -317,7 +282,7 @@ class Card:
 
     def isTokenOrEmblem(self) -> bool:
         """
-        Check if the card is a token or an emblem (not a sanctioned card)
+        Check if the card is a token or an emblem (not a sanctioned card).
         """
         return self.isToken() or self.layout == C.LayoutType.EMB
 
@@ -326,13 +291,16 @@ class Card:
         Check if the card has two faces.
 
         Please note that this is not based on the card layout,
-        since a face itsef does not have two faces
+        since a face itself does not have two faces.
         """
         return self._hasKey("card_faces")
 
     def isFace(self) -> bool:
         """
         Check if the card is a face, meaning we can retrieve the face_num property.
+
+        Please note that this is not based on the card layout,
+        since a card and its faces have the same layout.
         """
         return (not self.isTokenOrEmblem() and self._hasKey("face_num"))
 
@@ -360,6 +328,55 @@ class Card:
             legal["historic"] == "not_legal"
         ])
 
+class LayoutCard:
+    def __init__(
+        self,
+        card: Card,
+        alternativeFrames: bool = False,
+    ):
+        self.card = card
+        self.alternativeFrames = alternativeFrames
+    
+    @property
+    def layout(self) -> C.LayoutType:
+        layoutType = self.card.layout
+
+        if self.alternativeFrames:
+            if layoutType == C.LayoutType.FLP:
+                layoutType = C.LayoutType.TDF
+            elif layoutType == C.LayoutType.AFT:
+                layoutType = C.LayoutType.SPL
+            elif layoutType == C.LayoutType.TOK and self.card.oracle_text == "":
+                layoutType = C.LayoutType.VTK
+            elif layoutType == C.LayoutType.STD and self.card.oracle_text == "":
+                layoutType = C.LayoutType.VCR
+
+        return layoutType
+
+    @property
+    def layoutData(self) -> C.LayoutData:
+        """
+        Given a card or a card face, return the correct layout
+        (taking into consideration if the alternate card frames were requested or not)
+        """
+        return C.LAYOUT_DATA[self.layout][self.face_num]
+
+    @property
+    def faces(self) -> List[Self]:
+        if self.card.isTwoParts():
+            return [
+                LayoutCard(face, self.alternativeFrames)
+                for face in self.card.card_faces
+            ]
+        else:
+            return [self]
+
+    @property
+    def face_num(self) -> int:
+        if self.card.isFace():
+            return self.card.face_num
+        else:
+            return 0
 
 Deck = List[Card]
 Flavor = Dict[str, str]

@@ -40,9 +40,12 @@ If something doesn't work, please [open an issue on GitHub](https://github.com/a
     - Add `--no-card-space` to print the cards without blank space between them.
     - Add `--full-art-lands` to print basic lands without the big mana symbol.
     - Add `--ignore-basic-lands` to ignore basic lands when generating proxies.
-    - Add `--alternative-frames` to print flip cards (the ones from Kamigawa) as if they were double-faced cards and aftermath cards as if they were split cards.
+    - Add `--alternative-frames` to print:
+        - Flip cards (the ones from Kamigawa) as if they were double-faced cards;
+        - Aftermath cards as if they were split cards;
+        - Vanilla tokens and creatures with a full art frame (same as full art lands).
     - Add `--no-acorn-stamp` to print non-tournament legal cards without an acorn symbol near their name. This can be useful for Planechase Planes or Archenemy Schemes, or if you just don't like the symbol.
-1. Print each page in `pages/yourDeck/` at full size and cut just outside the border of each card.
+1. Print each page in `output/yourDeck/` at full size and cut just outside the border of each card.
 
 ## Add tokens and emblems
 
