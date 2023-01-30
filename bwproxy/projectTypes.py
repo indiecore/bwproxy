@@ -33,7 +33,7 @@ class Card:
     @classmethod
     def from_name(cls, name: str) -> Self:
         named: Named = Named(fuzzy=name)
-        return cls(named)
+        return Card(named)
 
     def __init__(self, card: C.JsonDict | Named | Card):
         
@@ -48,45 +48,16 @@ class Card:
             raise ValueError("You must provide a card")
 
         self._version: str = C.VERSION
+
+        # I should keep the Json untouched,
+        # but this is actually a stupid thing and I have no qualms modifying it
+        if self._hasKey("flavor_name") and self._getKey("flavor_name") == "":
+            del(self.data["flavor_name"])
         
         # Setting info for Emblem and Tokens
         if "Emblem" in self.type_line:
-            self.data["layout"] = C.LayoutType.EMB.value
-            self.data["type_line"] = "Emblem"
             self.data["name"] = self.data["name"].replace(" Emblem", "")
 
-        if "Token" in self.type_line:
-            self.data["layout"] = C.LayoutType.TOK.value
-            # I HATE double faced tokens
-            if not self.isTwoParts() and len(self.colors) > 0:
-                self.data["color_indicator"] = self.colors
-
-        if self.name in C.BASIC_LANDS:
-            self.data["layout"] = C.LayoutType.LND.value
-
-        # Setting non-standard layouts (attraction, fuse, aftermath)
-        
-        if "Attraction" in self.type_line:
-            self.data["layout"] = C.LayoutType.ATR.value
-
-        if not self._hasKey("layout"):
-            # Something went horribly, horribly wrong
-            raise Exception(f"Card {self.name} has no layout")
-
-        layout = self.layout
-
-        if layout == C.LayoutType.SPL and self.isTwoParts():
-            # Set up alternative split layouts (aftermath and fuse)
-            secondHalfText = self.card_faces[1].oracle_text.split("\n")
-            if secondHalfText[0].split(" ")[0] == "Aftermath":
-                # Second half begins with Aftermath
-                self.data["layout"] = C.LayoutType.AFT.value
-            if secondHalfText[-1].split(" ")[0] == "Fuse":
-                # Second half ends with Fuse
-                self.data["layout"] = C.LayoutType.FUS.value
-                # Adding the fuse text to the main card
-                self.data["fuse_text"] = secondHalfText[-1]
-    
 
     def _hasKey(self, attr: str) -> bool:
         """
@@ -122,6 +93,13 @@ class Card:
     def color_indicator(self) -> List[C.ManaColors]:
         if self._hasKey("color_indicator"):
             return [C.ManaColors(c) for c in self._getKey("color_indicator")]
+        elif (
+            # I hate two-parts tokens
+            self.isToken()
+            and not self.isTwoParts()
+            and len(self.colors) > 0
+        ):
+            return self.colors
         else:
             return []
 
@@ -156,17 +134,40 @@ class Card:
 
         Use this to discriminate among the possible card drawing layouts.
         """
+        if "Emblem" in self.type_line:
+            return C.LayoutType.EMB
+        
+        elif "Token" in self.type_line:
+            return C.LayoutType.TOK
+
+        elif self.name in C.BASIC_LANDS:
+            return C.LayoutType.LND
+
+        elif "Attraction" in self.type_line:
+            return C.LayoutType.ATR
+
         layoutString: str = self._getKey("layout")
+        
+        if layoutString == C.LayoutType.SPL.value and self._hasKey("card_faces"):
+            secondHalfText = self.data["card_faces"][1]["oracle_text"].split("\n")
+            if secondHalfText[0].startswith("Aftermath"):
+                return C.LayoutType.AFT
+            elif secondHalfText[-1].startswith("Fuse"):
+                return C.LayoutType.FUS
+
         if layoutString in C.LayoutType.values():
             return C.LayoutType(layoutString)
+
         return C.LayoutType.STD
 
     @property
     def fuse_text(self) -> str:
-        return self._getKey("fuse_text")
+        if self.layout != C.LayoutType.FUS:
+            raise AttributeError("Cannot retrieve fuse text of non-fuse card")
+        return "Fuse (You may cast one or both halves of this card from your hand.)"
 
     @property
-    def card_faces(self) -> List[Card]:
+    def card_faces(self) -> List[Self]:
         """
         Returns all the different units in a card.
         
@@ -186,8 +187,8 @@ class Card:
         if not self._hasKey("card_faces"):
             raise AttributeError(f"Cannot ask for faces of the single card {self.name}")
 
-        faces: List[C.JsonDict] = self._getKey("card_faces")
-        layout: C.LayoutType = self.layout
+        faces: List[C.JsonDict] = deepcopy(self._getKey("card_faces"))
+        layout = self.layout
         faces[0]["layout"] = layout.value
         faces[1]["layout"] = layout.value
         faces[0]["face_num"] = 0
@@ -328,27 +329,43 @@ class Card:
             legal["historic"] == "not_legal"
         ])
 
-class LayoutCard:
+class LayoutCard(Card):
+    @classmethod
+    def from_name(
+        cls,
+        name: str,
+        alternativeFrames: bool = False,
+        flavorName: str | None = None,
+    ) -> Self:
+        named: Named = Named(fuzzy=name)
+        return LayoutCard(
+            named,
+            alternativeFrames,
+            flavorName,
+        )
+
     def __init__(
         self,
-        card: Card,
+        card: C.JsonDict | Named | Card,
         alternativeFrames: bool = False,
+        flavorName: str | None = None,
     ):
-        self.card = card
-        self.alternativeFrames = alternativeFrames
+        super().__init__(card)
+        self.__flavorName = flavorName
+        self.__alternativeFrames = alternativeFrames
     
     @property
     def layout(self) -> C.LayoutType:
-        layoutType = self.card.layout
+        layoutType = super().layout
 
-        if self.alternativeFrames:
+        if self.__alternativeFrames:
             if layoutType == C.LayoutType.FLP:
                 layoutType = C.LayoutType.TDF
             elif layoutType == C.LayoutType.AFT:
                 layoutType = C.LayoutType.SPL
-            elif layoutType == C.LayoutType.TOK and self.card.oracle_text == "":
+            elif layoutType == C.LayoutType.TOK and self.oracle_text == "":
                 layoutType = C.LayoutType.VTK
-            elif layoutType == C.LayoutType.STD and self.card.oracle_text == "":
+            elif layoutType == C.LayoutType.STD and self.oracle_text == "":
                 layoutType = C.LayoutType.VCR
 
         return layoutType
@@ -362,21 +379,34 @@ class LayoutCard:
         return C.LAYOUT_DATA[self.layout][self.face_num]
 
     @property
-    def faces(self) -> List[Self]:
-        if self.card.isTwoParts():
+    def card_faces(self) -> List[Self]:
+        if self.isTwoParts():
             return [
-                LayoutCard(face, self.alternativeFrames)
-                for face in self.card.card_faces
+                LayoutCard(
+                    face,
+                    self.__alternativeFrames,
+                    None
+                )
+                for face in super().card_faces
             ]
         else:
             return [self]
 
     @property
     def face_num(self) -> int:
-        if self.card.isFace():
-            return self.card.face_num
+        if self.isFace():
+            return super().face_num
         else:
             return 0
+
+    def hasFlavorName(self) -> bool:
+        return self.__flavorName is not None or super().hasFlavorName()
+
+    @property
+    def flavor_name(self) -> str:
+        if self.__flavorName is not None:
+            return self.__flavorName
+        return super().flavor_name
 
 Deck = List[Card]
 Flavor = Dict[str, str]

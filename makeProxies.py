@@ -12,7 +12,7 @@ import argparse
 
 import bwproxy.drawUtil as drawUtil
 import bwproxy.projectConstants as C
-from bwproxy.projectTypes import Card, LayoutCard, Flavor
+from bwproxy.projectTypes import Card, LayoutCard
 
 
 def deduplicateTokenResults(query: str, results: list[Card]) -> list[Card]:
@@ -157,7 +157,7 @@ def loadCards(
     requestedCards: str | None = None,
     ignoreBasicLands: bool = False,
     alternativeFrames: bool = False
-) -> tuple[List[LayoutCard], Flavor]:
+) -> List[LayoutCard]:
     """
     Search the requested cards' data. The requested data can be specified
     via file or via plaintext string
@@ -186,49 +186,51 @@ def loadCards(
         raise ValueError("Missing file location and requested cards plaintext info")
 
     cardsInDeck: List[LayoutCard] = []
-    flavorNames: Flavor = {}
 
     # This regex searches for // at the beginning of the line,
     # or for # at any point in the line
-    removeCommentsRegex = re.compile(r"^//.*$|#.*$")
+    commentsRegex = re.compile(r"^//.*$|#.*$")
     # This regex searches for two or more spaces consecutively
     doubleSpacesRegex = re.compile(r" {2,}")
     # This regex searches for any number of digits at the beginning of the line,
-    # Eventually followed by a question mark
+    # Eventually followed by a x.
     # The digits are saved into the first capturing group
     cardCountRegex = re.compile(r"^([0-9]+)x?")
     # This regex searches (case insensitive) for (token) or (emblem) at the beginning
-    # Eventually preceded by the card count section
     # Token or Emblem is saved into the first capturing group
-    tokenEmblemRegex = re.compile(r"^(?:[0-9]+x? )?\((token|emblem)\)", flags=re.I)
+    tokenEmblemRegex = re.compile(r"^\((token|emblem)\)", flags=re.I)
     # This regex searches for any section between square brackets
     # This should be the flavor name of the card
     # The flavor name is saved into the first capturing group
     flavorNameRegex = re.compile(r"\[(.*?)\]")
-    # This regex excludes all other sections and saves the remaining info
-    # (hopefully the card name) in the first capturing group
-    cardNameRegex = re.compile(
-        r"^(?:[0-9]+x? )?(?:\((?:token|emblem)\) )?(.*?)(?: \[.*?\])?$", flags=re.I
-    )
 
-    for line in requestedCards.split("\n"):
-        line = removeCommentsRegex.sub("", line)
+    for origLine in requestedCards.split("\n"):
+        line = origLine
+        line = commentsRegex.sub("", line)
         line = doubleSpacesRegex.sub(" ", line.strip())
 
         if line == "":
             continue
 
         cardCountMatch = cardCountRegex.search(line)
-        cardCount = int(cardCountMatch.groups()[0]) if cardCountMatch else 1
+        if cardCountMatch:
+            cardCount = int(cardCountMatch.groups()[0])
+            line = cardCountRegex.sub("", line).strip()
+        else:
+            cardCount = 1
 
         flavorNameMatch = flavorNameRegex.search(line)
-        cardNameMatch = cardNameRegex.search(line)
-        tokenMatch = tokenEmblemRegex.search(line)
+        if flavorNameMatch:
+            line = flavorNameRegex.sub("", line).strip()
 
-        if cardNameMatch:
-            cardName = cardNameMatch.groups()[0]
+        tokenMatch = tokenEmblemRegex.search(line)
+        if tokenMatch:
+            line = tokenEmblemRegex.sub("", line).strip()
+
+        if line:
+            cardName = line
         else:
-            raise Exception(f"No card name found in line {line}.")
+            raise Exception(f"No card name found in line {origLine}.")
 
         if ignoreBasicLands and cardName in C.BASIC_LANDS:
             print(
@@ -239,11 +241,13 @@ def loadCards(
         if tokenMatch:
             tokenType = tokenMatch.groups()[0].lower()
             if ";" in cardName:
+                # Token is specified in the input, so we need to parse it
                 if flavorNameMatch:
                     tokenName = flavorNameMatch.groups()[0]
                 else:
                     tokenName = None
                 tokenData = parseToken(text=cardName, name=tokenName)
+            # Token is a named token
             elif cardName in tokenCache:
                 tokenData = tokenCache[cardName]
             else:
@@ -263,22 +267,41 @@ def loadCards(
 
             tokenCache[cardName] = tokenData
             for _ in range(cardCount):
-                cardsInDeck.append(LayoutCard(tokenData, alternativeFrames))
+                cardsInDeck.append(
+                    LayoutCard(
+                        tokenData.data,
+                        alternativeFrames
+                    )
+                )
             continue
 
+        # Card is not a token
+
+        if flavorNameMatch:
+            flavorName = flavorNameMatch.groups()[0]
+        else:
+            flavorName = None
+
         if cardName in cardCache:
-            cardData = Card(cardCache[cardName])
-            cardCache[cardName] = cardData
+            cardData = LayoutCard(
+                cardCache[cardName].data,
+                alternativeFrames,
+                flavorName
+            )
         else:
             print(f"{cardName} not in cache. searching...")
             try:
-                cardData: Card = Card.from_name(cardName)
+                cardData = LayoutCard.from_name(
+                    cardName,
+                    alternativeFrames,
+                    flavorName
+                )
             except ScryfallError as err:
                 print(f"Skipping {cardName}. {err}")
                 continue
-
             print(f"Card {cardData.name} found!")
-            cardCache[cardName] = cardData
+
+        cardCache[cardName] = cardData
 
         if ignoreBasicLands and cardData.name in C.BASIC_LANDS:
             print(
@@ -286,23 +309,14 @@ def loadCards(
             )
             continue
 
-        if cardData.hasFlavorName():
-            flavorNames[cardData.name] = cardData.flavor_name
-
-        if flavorNameMatch:
-            flavorName = flavorNameMatch.groups()[0]
-            flavorNames[cardData.name] = flavorName
-
-        layoutCardData = LayoutCard(cardData, alternativeFrames)
-
-        if layoutCardData.layout in C.LAYOUT_TYPES_DF:
-            facesData = layoutCardData.faces
+        if cardData.layout in C.LAYOUT_TYPES_DF:
+            facesData = cardData.card_faces
             for _ in range(cardCount):
                 cardsInDeck.append(facesData[0])
                 cardsInDeck.append(facesData[1])
         else:
             for _ in range(cardCount):
-                cardsInDeck.append(layoutCardData)
+                cardsInDeck.append(cardData)
 
     os.makedirs(os.path.dirname(C.CACHE_LOC), exist_ok=True)
     with open(C.CACHE_LOC, "wb") as p:
@@ -312,7 +326,7 @@ def loadCards(
     with open(C.TOKEN_CACHE_LOC, "wb") as p:
         pickle.dump(tokenCache, p)
 
-    return (cardsInDeck, flavorNames)
+    return cardsInDeck
 
 # Paging
 
@@ -464,7 +478,7 @@ if __name__ == "__main__":
     else:
         setIcon = None
 
-    (allCards, flavorNames) = loadCards(
+    allCards = loadCards(
         fileLoc=decklistPath,
         ignoreBasicLands=args.ignoreBasicLands,
         alternativeFrames=args.alternativeFrames,
@@ -472,9 +486,8 @@ if __name__ == "__main__":
     
     images = [
         drawUtil.drawCard(
-            layoutCard=layoutCard,
+            card=layoutCard,
             setIcon=setIcon,
-            flavorNames=flavorNames,
             isColored=args.color,
             useTextSymbols=args.useTextSymbols,
             fullArtLands=args.fullArtLands,
