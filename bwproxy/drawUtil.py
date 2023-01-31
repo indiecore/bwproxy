@@ -3,7 +3,7 @@ from PIL import Image, ImageDraw, ImageFont, ImageColor, ImageOps
 import re
 
 from . import projectConstants as C
-from .projectTypes import LayoutCard, Flavor, XY # type: ignore
+from .projectTypes import LayoutCard, XY # type: ignore
 
 RGB = Union[Tuple[int, int, int], Tuple[int, int, int, int]]
 
@@ -112,11 +112,11 @@ def fitMultiLine(
         return (formattedText, font)
 
 
-def calcTopValue(
+def calcAscendantValue(
     font: ImageFont.FreeTypeFont, text: str, upperBorder: int, spaceSize: int
 ) -> int:
     """
-    Calculate the vertical value for top anchor in order to center text vertically.
+    Calculate the vertical value for the ascendant anchor in order to center text vertically.
 
     See https://pillow.readthedocs.io/en/stable/handbook/text-anchors.html#text-anchors
     for explanation about font terms.
@@ -545,7 +545,7 @@ def drawTitleLine(
         pen.text(
             (
                 alignNameMiddle,
-                calcTopValue(
+                calcAscendantValue(
                     font=nameFont,
                     text=card.name,
                     upperBorder=layoutData.BORDER.CARD.TOP,
@@ -581,7 +581,7 @@ def drawTitleLine(
     pen.text(
         (
             manaCornerRight,
-            calcTopValue(
+            calcAscendantValue(
                 font=manaFont,
                 text=manaCost,
                 upperBorder=layoutData.BORDER.CARD.TOP,
@@ -614,7 +614,7 @@ def drawTitleLine(
         pen.text(
             (
                 alignNameLeft,
-                calcTopValue(
+                calcAscendantValue(
                     font=faceSymbolFont,
                     text=faceSymbol,
                     upperBorder=layoutData.BORDER.CARD.TOP,
@@ -641,7 +641,7 @@ def drawTitleLine(
     pen.text(
         (
             alignNameLeft,
-            calcTopValue(
+            calcAscendantValue(
                 font=nameFont,
                 text=displayName,
                 upperBorder=layoutData.BORDER.CARD.TOP,
@@ -717,7 +717,7 @@ def drawTypeLine(
     pen.text(
         (
             alignTypeLeft,
-            calcTopValue(
+            calcAscendantValue(
                 font=typeFont,
                 text=text,
                 upperBorder=layoutData.BORDER.TYPE,
@@ -851,7 +851,7 @@ def drawFuseText(card: LayoutCard, image: Image.Image) -> Image.Image:
     pen.text(
         (
             C.DRAW_SIZE.SEPARATOR,
-            calcTopValue(
+            calcAscendantValue(
                 font=fuseTextFont,
                 text=card.fuse_text,
                 upperBorder=layoutData.BORDER.FUSE.TOP,
@@ -939,7 +939,7 @@ def drawCredits(
         fontSize=C.DRAW_SIZE.CREDITS,
     )
 
-    alignCreditsTop = calcTopValue(
+    alignCreditsAscendant = calcAscendantValue(
         font=credFont,
         text=C.CREDITS + "   " + C.VERSION,
         upperBorder=layoutData.BORDER.CREDITS,
@@ -949,7 +949,7 @@ def drawCredits(
     pen.text(
         (
             alignCreditsLeft,
-            alignCreditsTop
+            alignCreditsAscendant
         ),
         text=C.CREDITS + "   ",
         font=credFont,
@@ -961,7 +961,7 @@ def drawCredits(
     pen.text(
         (
             alignCreditsLeft + credLength,
-            alignCreditsTop
+            alignCreditsAscendant
         ),
         text=C.VERSION,
         font=credFont,

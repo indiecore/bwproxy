@@ -1,5 +1,6 @@
 from copy import deepcopy
 from PIL import Image
+from pathlib import Path
 from typing import (
     Any,
     Dict,
@@ -167,8 +168,9 @@ RGB = Union[Tuple[int, int, int], Tuple[int, int, int, int]]
 
 # Cards and Tokens/Emblems have different caches, since there are cards with the same name as tokens
 # Notable example: Blood token and Flesh // Blood
-CACHE_LOC = "cardcache/cardcache.p"
-TOKEN_CACHE_LOC = "cardcache/tokencache.p"
+CACHE_FOLDER = Path("cardcache")
+CACHE_LOC = CACHE_FOLDER / "cardcache.p"
+TOKEN_CACHE_LOC = CACHE_FOLDER / "tokencache.p"
 BACK_CARD_SYMBOLS_LOC = "symbols"
 
 TITLE_FONT = "fonts/title_font.ttf"
@@ -290,7 +292,6 @@ Class, Sagas and Leveler frames?
 Colored Mana symbols
 Flavor Names for DFC, Adventures and possibly Flip?
 Stop changing fonts
-COMMENTS
 """
 
 # Info relative to card pagination, mainly card and element sizes

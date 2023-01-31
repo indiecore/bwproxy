@@ -246,7 +246,12 @@ def loadCards(
                     tokenName = flavorNameMatch.groups()[0]
                 else:
                     tokenName = None
-                tokenData = parseToken(text=cardName, name=tokenName)
+
+                try:
+                    tokenData = parseToken(text=cardName, name=tokenName)
+                except:
+                    print(f"Line '{origLine}' contains a {tokenType}, but the info specified was not formatted correctly.")
+                continue
             # Token is a named token
             elif cardName in tokenCache:
                 tokenData = tokenCache[cardName]

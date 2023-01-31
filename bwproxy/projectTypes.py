@@ -408,7 +408,4 @@ class LayoutCard(Card):
             return self.__flavorName
         return super().flavor_name
 
-Deck = List[Card]
-Flavor = Dict[str, str]
-
 XY = C.XY
