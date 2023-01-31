@@ -1,5 +1,5 @@
 *.txt
-*.p
+cardcache/
 __pycache__/
 output/
 icons/
