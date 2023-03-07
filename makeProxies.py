@@ -126,10 +126,9 @@ def main():
     )
     
     deckName = decklistPath.stem
-    outputFolder = Path(f"output/{deckName}/")
+    outputFolder = Path(f"output")
     os.makedirs(outputFolder, exist_ok=True)
-    for (index, page) in enumerate(pages):
-        page.save(outputFolder / f"{index + 1 :02}.png", "PNG")
+    pages[0].save(outputFolder / f"{deckName}.pdf", "pdf", save_all=True, append_images=pages[1:])
 
     exit(0)
 
