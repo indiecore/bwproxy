@@ -1,5 +1,5 @@
 from __future__ import annotations
-from typing import Any, List, Dict
+from typing import Any, List
 from typing_extensions import Self
 from scrython import Named
 from copy import deepcopy
@@ -329,12 +329,10 @@ class Card:
         """
         if self.isTokenOrEmblem():
             return False
-        legal: Dict[str, str] = self._getKey("legalities")
-        return all([
-            legal["vintage"] == "not_legal",
-            legal["alchemy"] == "not_legal",
-            legal["historic"] == "not_legal"
-        ])
+        return (
+            ( self._hasKey("border") and self._getKey("border") == "silver" )
+            or ( self._hasKey("stamp") and self._getKey("stamp") == "acorn" )
+        )
 
 class LayoutCard(Card):
     @classmethod

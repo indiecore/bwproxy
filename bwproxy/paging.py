@@ -4,7 +4,7 @@ from PIL import Image
 from tqdm import tqdm
 
 from .classes import XY, PageFormat # type: ignore
-from .dimensions import PAGE_SIZE, CARD_SIZE, SMALL_CARD_SIZE, CARD_DISTANCE
+from .dimensions import PAGE_SIZE, CARD_SIZE, SMALL_CARD_SIZE, CARD_DISTANCE, CARD_DISTANCE_SMALL
 
 def batchSpacing(
     n: int,
@@ -13,7 +13,7 @@ def batchSpacing(
     cardSize: XY,
     noCardSpace: bool = False,
 ) -> Tuple[int, int]:
-    cardDistance = 1 if noCardSpace else CARD_DISTANCE
+    cardDistance = CARD_DISTANCE_SMALL if noCardSpace else CARD_DISTANCE
     maxH = pageSize[0] - (cardDistance + (cardSize.h + cardDistance) * batchSize[0])
     maxV = pageSize[1] - (cardDistance + (cardSize.v + cardDistance) * batchSize[1])
     return (

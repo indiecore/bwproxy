@@ -1,5 +1,4 @@
 from PIL import Image, ImageDraw, ImageColor, ImageOps
-from typing import Dict
 
 from ..classes import RGB, XY, LayoutData, LayoutType, ManaColors, FrameColors
 from ..card_wrapper import LayoutCard
@@ -32,8 +31,6 @@ def drawStandardRectangle(pen: ImageDraw.ImageDraw, layout: LayoutData, bottom: 
         width=DRAW_SIZE.BORDER,
     )
 
-frameCache: Dict[LayoutType, Image.Image] = {}
-
 def makeFrameBlack(
     card: LayoutCard
 ) -> Image.Image:
@@ -41,8 +38,6 @@ def makeFrameBlack(
     Creates a black frame on which we can draw the card,
     based on the card layout info
     """
-    if card.layout in frameCache:
-        return frameCache[card.layout].copy()
 
     frame = Image.new("RGB", size=CARD_SIZE, color=WHITE)
     pen = ImageDraw.Draw(frame)
@@ -115,8 +110,6 @@ def makeFrameBlack(
 
         if rotation is not None:
             frame = frame.transpose(rotation[1])
-
-    frameCache[card.layout] = frame.copy()
 
     return frame
 

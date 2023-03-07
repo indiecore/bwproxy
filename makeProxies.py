@@ -9,7 +9,7 @@ import argparse
 
 from bwproxy import drawCard, loadCards, paginate, PageFormat
 
-if __name__ == "__main__":
+def main():
     parser = argparse.ArgumentParser(description="Generate printable MTG proxies")
     parser.add_argument(
         "decklistPath",
@@ -132,3 +132,6 @@ if __name__ == "__main__":
         page.save(outputFolder / f"{index + 1 :02}.png", "PNG")
 
     exit(0)
+
+if __name__ == '__main__':
+    main()

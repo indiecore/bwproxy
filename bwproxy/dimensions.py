@@ -20,6 +20,7 @@ CARD_SIZE = XY(int(2.5 * DPI), int(3.5 * DPI))
 SMALL_CARD_SIZE = CARD_SIZE.scale(factor=0.75)
 # Distance between cards when paginated, in pixels
 CARD_DISTANCE = 20
+CARD_DISTANCE_SMALL = 3
 
 PAGE_SIZE: Dict[PageFormat, XY] = {
     PageFormat.A4: XY(
