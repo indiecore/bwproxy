@@ -1,6 +1,8 @@
 from typing import Tuple, List, Dict, Match, Optional, Any, overload # type: ignore
 from PIL import Image, ImageDraw, ImageFont
 import re
+import sys
+import os
 
 from ..classes import LayoutType, ManaColors
 from ..card_wrapper import LayoutCard
@@ -9,9 +11,15 @@ from ..dimensions import DRAW_SIZE, BORDER_CENTER_OFFSET
 
 BLACK = (0, 0, 0)
 
-BACK_CARD_SYMBOLS_LOC = "symbols"
-TITLE_FONT = "fonts/title_font.ttf"
-RULES_FONT = "fonts/rules_font.ttf"
+# This or pyinstaller does not work, see https://stackoverflow.com/a/13790741
+try:
+    basePath: str = sys._MEIPASS # type: ignore
+except:
+    basePath = os.path.abspath('.')
+
+BACK_CARD_SYMBOLS_LOC = os.path.join(basePath, "resources/symbols")
+TITLE_FONT = os.path.join(basePath, "resources/fonts/title_font.ttf")
+RULES_FONT = os.path.join(basePath, "resources/fonts/rules_font.ttf")
 
 # FONT_CODE_POINT includes the symbols used in the card text and mana cost.
 # Those were added manually to the font file at the specified unicode point

@@ -82,7 +82,7 @@ def main():
         "--no-acorn-stamp",
         action="store_false",
         dest="useAcornSymbol",
-        help="do not print the acorn symbol on non tournament legal cards",
+        help="do not print the acorn symbol on silver-border and acorn cards",
     )
 
     args = parser.parse_args()

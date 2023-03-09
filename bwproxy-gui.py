@@ -6,7 +6,6 @@ from tqdm import tqdm
 from pathlib import Path
 import os
 from gooey import Gooey, GooeyParser # type: ignore
-import argparse
 
 from bwproxy import drawCard, loadCards, paginate, PageFormat, CardSize
 
@@ -15,7 +14,7 @@ from bwproxy import drawCard, loadCards, paginate, PageFormat, CardSize
     program_name="BWProxy",
 ) # type: ignore
 def main():
-    parser: argparse.ArgumentParser = GooeyParser(
+    parser = GooeyParser(
         prog="BWProxy",
         description="Black and white MTG proxy generator",
     )
@@ -158,8 +157,6 @@ def main():
     outputFolder = Path(f"output")
     os.makedirs(outputFolder, exist_ok=True)
     pages[0].save(outputFolder / f"{deckName}.pdf", "pdf", save_all=True, append_images=pages[1:])
-
-    exit(0)
 
 if __name__ == '__main__':
     main()

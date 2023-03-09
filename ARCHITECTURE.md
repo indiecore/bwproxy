@@ -1,4 +1,10 @@
-# BWProxy architecture
+# BWProxy technical details
+
+BWProxy requires Python 3.7, since the github action used to create the executable only supports this Python version and my PC is too slow to run pyinstaller.
+
+The entry points are `bwproxy-gui.py` for the GUI program and `bwproxy-cli.py` for the CLI utility. Requirements and build files for pyinstaller are in the root folder.
+
+# BWProxy Architecture
 
 The proxy generator works in 5 phases:
 
@@ -8,8 +14,7 @@ The proxy generator works in 5 phases:
 4. Draw the card text (name, cost, rules text...);
 5. Paginate the results and save them to a file.
 
-The main file, `makeProxies.py`, is simply an interface to the actual proxy generator,
-containing the argument parser and calling the actual functions, al contained in the `bwproxy` folder.
+The functions doing the work are all contained in the `bwproxy` folder.
 
 Phases 1 and 2 are managed by `search.py`,
 phase 3 is managed by `draw/frame.py`,
