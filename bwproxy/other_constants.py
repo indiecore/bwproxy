@@ -2,7 +2,8 @@ from .classes import LayoutType
 
 VERSION: str = "v2.2"
 # 0x23F is the paintbrush symbol
-CREDITS: str = chr(0x23F) + " https://a11ce.com/bwproxy"
+# Using Unicode thin spaces (U+2009) and en dash (U+2013)
+CREDITS: str = chr(0x23F) + " https://a11ce.com/bwproxy" + " – "
 
 # MTG constants: colors, basic lands, color names...
 

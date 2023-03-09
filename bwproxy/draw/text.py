@@ -5,7 +5,7 @@ import re
 from ..classes import LayoutType, ManaColors
 from ..card_wrapper import LayoutCard
 from ..other_constants import LAYOUT_TYPES_DF, MANA_HYBRID, ACORN_PLAINTEXT, CREDITS, VERSION
-from ..dimensions import CARD_SIZE, DRAW_SIZE, BORDER_CENTER_OFFSET
+from ..dimensions import DRAW_SIZE, BORDER_CENTER_OFFSET
 
 BLACK = (0, 0, 0)
 
@@ -528,7 +528,7 @@ def drawFuseText(card: LayoutCard, image: Image.Image) -> Image.Image:
     fuseTextFont = fitOneLine(
         fontPath=RULES_FONT,
         text=card.fuse_text,
-        maxWidth=CARD_SIZE.v - 2 * DRAW_SIZE.SEPARATOR,
+        maxWidth=layoutData.CARD_SIZE.v - 2 * DRAW_SIZE.SEPARATOR,
         fontSize=DRAW_SIZE.TEXT,
     )
     pen.text(
@@ -614,17 +614,18 @@ def drawCredits(
     alignCreditsLeft = layoutData.BORDER.CARD.LEFT + DRAW_SIZE.SEPARATOR
 
     pen = ImageDraw.Draw(image)
+    fontSize = DRAW_SIZE.CREDITS_PLAYTEST if card.isPlaytestSize() else DRAW_SIZE.CREDITS
 
     credFont = fitOneLine(
         fontPath=RULES_FONT,
-        text=CREDITS + "   " + VERSION,
+        text=CREDITS + VERSION,
         maxWidth=layoutData.SIZE.CARD.HORIZ - 2 * DRAW_SIZE.SEPARATOR,
-        fontSize=DRAW_SIZE.CREDITS,
+        fontSize=fontSize,
     )
 
     alignCreditsAscendant = calcAscendantValue(
         font=credFont,
-        text=CREDITS + "   " + VERSION,
+        text=CREDITS + VERSION,
         upperBorder=layoutData.BORDER.CREDITS,
         spaceSize=layoutData.SIZE.CREDITS,
     )
@@ -634,12 +635,12 @@ def drawCredits(
             alignCreditsLeft,
             alignCreditsAscendant
         ),
-        text=CREDITS + "   ",
+        text=CREDITS,
         font=credFont,
         fill=BLACK,
         anchor="ls",
     )
-    credLength = pen.textlength(text=CREDITS + "   ", font=credFont)
+    credLength = pen.textlength(text=CREDITS, font=credFont)
 
     pen.text(
         (
@@ -650,7 +651,7 @@ def drawCredits(
         font=credFont,
         fill=BLACK,
         anchor="ls",
-        stroke_width=1,
+        # stroke_width=1,
     )
 
     if rotation is not None:

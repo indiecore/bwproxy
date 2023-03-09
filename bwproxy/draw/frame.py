@@ -2,7 +2,7 @@ from PIL import Image, ImageDraw, ImageColor, ImageOps
 
 from ..classes import RGB, XY, LayoutData, LayoutType, ManaColors, FrameColors
 from ..card_wrapper import LayoutCard
-from ..dimensions import CARD_SIZE, DRAW_SIZE, BORDER_START_OFFSET, TOKEN_ARC_WIDTH
+from ..dimensions import DRAW_SIZE, BORDER_START_OFFSET, TOKEN_ARC_WIDTH
 
 FRAME_COLORS = {
     ManaColors.White: "#fff53f",
@@ -39,10 +39,11 @@ def makeFrameBlack(
     based on the card layout info
     """
 
-    frame = Image.new("RGB", size=CARD_SIZE, color=WHITE)
+    cardSize = card.layoutData.CARD_SIZE
+    frame = Image.new("RGB", size=cardSize, color=WHITE)
     pen = ImageDraw.Draw(frame)
     # Card border
-    pen.rectangle(((0, 0), CARD_SIZE), outline=BLACK, width=5)
+    pen.rectangle(((0, 0), cardSize), outline=BLACK, width=5)
 
     for face in card.card_faces:
 
@@ -195,7 +196,8 @@ def makeColorTemplate(card: LayoutCard) -> Image.Image:
 
     This template is used to set the colors in the real frame.
     """
-    coloredTemplate = Image.new("RGB", size=CARD_SIZE, color=WHITE)
+    cardSize = card.layoutData.CARD_SIZE
+    coloredTemplate = Image.new("RGB", size=cardSize, color=WHITE)
 
     if card.layout in [LayoutType.SPL, LayoutType.FUS, LayoutType.AFT]:
         # For split card variants, we create two different half-templates
@@ -223,7 +225,7 @@ def makeColorTemplate(card: LayoutCard) -> Image.Image:
     # Flip does not have multicolored cards, so I'm ignoring it
     # Adventure for now is monocolored or both parts are the same color
     else:
-        return makeColorTemplateSingleFace(card=card, size=CARD_SIZE)
+        return makeColorTemplateSingleFace(card=card, size=cardSize)
 
 
 def makeFrameColored(card: LayoutCard) -> Image.Image:

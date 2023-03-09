@@ -4,7 +4,7 @@ from PIL import Image
 from tqdm import tqdm
 
 from .classes import XY, PageFormat # type: ignore
-from .dimensions import PAGE_SIZE, CARD_SIZE, SMALL_CARD_SIZE, CARD_DISTANCE, CARD_DISTANCE_SMALL
+from .dimensions import PAGE_SIZE, SMALL_CARD_RESIZE_FACTOR, CARD_DISTANCE, CARD_DISTANCE_SMALL
 
 def batchSpacing(
     n: int,
@@ -24,13 +24,13 @@ def batchSpacing(
 
 def paginate(
     images: List[Image.Image],
+    cardSize: XY,
     small: bool = False,
     pageFormat: PageFormat = PageFormat.A4,
     noCardSpace: bool = False,
 ) -> List[Image.Image]:
 
     pageHoriz = False
-    cardSize = CARD_SIZE
     if not small:
         batchSize = (3, 3)
     else:
@@ -41,7 +41,7 @@ def paginate(
     pageSize = PAGE_SIZE[pageFormat]
 
     if small:
-        cardSize = SMALL_CARD_SIZE
+        cardSize = cardSize.scale(factor=SMALL_CARD_RESIZE_FACTOR)
         images = [image.resize(cardSize) for image in images]
 
     if pageHoriz:

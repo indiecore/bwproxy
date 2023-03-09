@@ -78,7 +78,7 @@ class Card:
         Extracts the card colors from the mana cost, returned in WUBRG order
         """
         
-        colors: List[ManaColors] = list(map(ManaColors, Card._colorRe.findall(manaCost)))
+        colors: List[ManaColors] = list(map(ManaColors, Card._colorRe.findall(manaCost))) # type:ignore I swear this is correct
         ret: List[ManaColors] = []
         for c in colors:
             if c in ManaColors and c not in ret:
@@ -341,12 +341,14 @@ class LayoutCard(Card):
         name: str,
         alternativeFrames: bool = False,
         flavorName: str | None = None,
+        isPlaytest: bool = False,
     ) -> Self:
         named: Named = Named(fuzzy=name)
         return LayoutCard(
             named,
             alternativeFrames,
             flavorName,
+            isPlaytest,
         )
 
     def __init__(
@@ -354,10 +356,12 @@ class LayoutCard(Card):
         card: JsonDict | Named | Card,
         alternativeFrames: bool = False,
         flavorName: str | None = None,
+        isPlaytest: bool = False,
     ):
         super().__init__(card)
         self.__flavorName = flavorName
         self.__alternativeFrames = alternativeFrames
+        self.__isPlaytest = isPlaytest
     
     @property
     def layout(self) -> LayoutType:
@@ -381,7 +385,7 @@ class LayoutCard(Card):
         Given a card or a card face, return the correct layout
         (taking into consideration if the alternate card frames were requested or not)
         """
-        return LAYOUT_DATA(self.layout)[self.face_num]
+        return LAYOUT_DATA(self.layout, self.__isPlaytest)[self.face_num]
 
     @property
     def card_faces(self) -> List[Self]:
@@ -390,7 +394,8 @@ class LayoutCard(Card):
                 LayoutCard(
                     face,
                     self.__alternativeFrames,
-                    None
+                    flavorName = None,
+                    isPlaytest = self.__isPlaytest 
                 )
                 for face in super().card_faces
             ]
@@ -406,6 +411,9 @@ class LayoutCard(Card):
 
     def hasFlavorName(self) -> bool:
         return self.__flavorName is not None or super().hasFlavorName()
+    
+    def isPlaytestSize(self) -> bool:
+        return self.__isPlaytest
 
     @property
     def flavor_name(self) -> str:

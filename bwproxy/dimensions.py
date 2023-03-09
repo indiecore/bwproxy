@@ -3,6 +3,7 @@ from PIL import Image
 from typing import (
     Dict,
     List,
+    Tuple
 )
 
 from .classes import XY, LayoutType, LayoutData, PageFormat
@@ -17,7 +18,9 @@ from .other_constants import LAYOUT_TYPES_DF, LAYOUT_TYPES_TWO_PARTS
 
 DPI = 300
 CARD_SIZE = XY(int(2.5 * DPI), int(3.5 * DPI))
-SMALL_CARD_SIZE = CARD_SIZE.scale(factor=0.75)
+CARD_SIZE_PLAYTEST = XY(int(2 * DPI), int(3.5 * DPI))
+SMALL_CARD_RESIZE_FACTOR = 0.75
+# SMALL_CARD_SIZE = CARD_SIZE.scale(factor=0.75)
 # Distance between cards when paginated, in pixels
 CARD_DISTANCE = 20
 CARD_DISTANCE_SMALL = 3
@@ -43,6 +46,7 @@ class DrawSize():
         self.ATTRACTION = 80
         self.ATTRACTION_INTERLINE = 15
         self.CREDITS = 30
+        self.CREDITS_PLAYTEST = 23
         self.ICON = 40
         # Image size for emblem and land 
         self.IMAGE = 600
@@ -61,6 +65,7 @@ BORDER_CENTER_OFFSET = DRAW_SIZE.BORDER // 2
 
 def calcLayoutData(
     template: LayoutData,
+    cardSize: XY,
     layoutType: LayoutType,
     part: int = 0
 ) -> LayoutData:
@@ -88,6 +93,11 @@ def calcLayoutData(
     While some of these values are hardcoded, others are calculated
     such that the values are internally consistent."""
     layoutData = deepcopy(template)
+
+    # Setting BORDER.CARD because it depends on card size
+    layoutData.BORDER.CARD.BOTTOM = cardSize.v
+    layoutData.BORDER.CARD.RIGHT  = cardSize.h
+    layoutData.CARD_SIZE = cardSize
     
     # Aftermath second part is just a split card second part
     if (layoutType == LayoutType.AFT and part == 1):
@@ -95,23 +105,23 @@ def calcLayoutData(
     
     if layoutType == LayoutType.SPL or layoutType == LayoutType.FUS:
         layoutData.ROTATION = (Image.ROTATE_90, Image.ROTATE_270)
-        layoutData.BORDER.CARD.BOTTOM = CARD_SIZE.h
+        layoutData.BORDER.CARD.BOTTOM = cardSize.h
         layoutData.SIZE.RULES.VERT = 280
 
         if (part == 0):
             layoutData.BORDER.CARD.LEFT = 0
-            layoutData.BORDER.CARD.RIGHT = CARD_SIZE.v // 2
+            layoutData.BORDER.CARD.RIGHT = cardSize.v // 2
         else:
-            layoutData.BORDER.CARD.LEFT = CARD_SIZE.v // 2
-            layoutData.BORDER.CARD.RIGHT = CARD_SIZE.v
+            layoutData.BORDER.CARD.LEFT = cardSize.v // 2
+            layoutData.BORDER.CARD.RIGHT = cardSize.v
 
     elif layoutType == LayoutType.AFT:
-        layoutData.BORDER.CARD.BOTTOM = CARD_SIZE.v // 2
+        layoutData.BORDER.CARD.BOTTOM = cardSize.v // 2
         layoutData.SIZE.RULES.VERT = 175
 
     elif layoutType == LayoutType.ADV:
         if (part == 1):
-            layoutData.BORDER.CARD.RIGHT = CARD_SIZE.h // 2
+            layoutData.BORDER.CARD.RIGHT = cardSize.h // 2
             layoutData.BORDER.CARD.TOP = TEMPLATE_LAYOUT_DATA.BORDER.RULES.TOP - BORDER_START_OFFSET
             layoutData.BORDER.CARD.BOTTOM = TEMPLATE_LAYOUT_DATA.BORDER.RULES.BOTTOM
             layoutData.SIZE.TITLE += BORDER_START_OFFSET
@@ -179,7 +189,7 @@ def calcLayoutData(
         layoutData.BORDER.CREDITS + layoutData.SIZE.CREDITS
     )
     layoutData.BORDER.PTL_BOX.TOP = layoutData.BORDER.PTL_BOX.BOTTOM - layoutData.SIZE.PTL_BOX.VERT
-    layoutData.BORDER.PTL_BOX.RIGHT = layoutData.BORDER.RULES.RIGHT - 25 # Box is 25 pixels left
+    layoutData.BORDER.PTL_BOX.RIGHT = layoutData.BORDER.RULES.RIGHT - 15 # Box is 15 pixels left
     layoutData.BORDER.PTL_BOX.LEFT = layoutData.BORDER.PTL_BOX.RIGHT - layoutData.SIZE.PTL_BOX.HORIZ
     # Calculating PTL font position
     layoutData.FONT_MIDDLE.PTL_H = layoutData.BORDER.PTL_BOX.LEFT + layoutData.SIZE.PTL_BOX.HORIZ // 2
@@ -193,7 +203,7 @@ def calcLayoutData(
     # Fuse layouts have the Fuse section under the rules box
     elif (layoutType == LayoutType.FUS):
         layoutData.SIZE.FUSE = SizeData(
-            HORIZ = CARD_SIZE.v,
+            HORIZ = cardSize.v,
             VERT = 50,
         )
         layoutData.BORDER.RULES.BOTTOM -= layoutData.SIZE.FUSE.VERT
@@ -202,7 +212,7 @@ def calcLayoutData(
             TOP = layoutData.BORDER.RULES.BOTTOM,
             BOTTOM = layoutData.BORDER.RULES.BOTTOM + layoutData.SIZE.FUSE.VERT,
             LEFT = 0,
-            RIGHT = CARD_SIZE.v
+            RIGHT = cardSize.v
         )
         layoutData.FONT_MIDDLE.FUSE_V = layoutData.BORDER.FUSE.TOP +  layoutData.SIZE.FUSE.VERT // 2
     # Attractions have the number box on the right
@@ -244,9 +254,7 @@ TEMPLATE_LAYOUT_DATA: LayoutData = calcLayoutData(
             # are calculated based on sizes
             CARD = BorderData(
                 LEFT = 0,
-                RIGHT = CARD_SIZE.h,
                 TOP = 0,
-                BOTTOM = CARD_SIZE.v
             ),
         ),
         SIZE = Size(
@@ -267,23 +275,28 @@ TEMPLATE_LAYOUT_DATA: LayoutData = calcLayoutData(
         ),
         FONT_MIDDLE = FontMiddle()
     ),
+    cardSize=CARD_SIZE,
     layoutType=LayoutType.STD
 )
 
-LAYOUT_DATA_CACHE: Dict[LayoutType, List[LayoutData]] = {}
+LAYOUT_DATA_CACHE: Dict[Tuple[LayoutType, bool], List[LayoutData]] = {}
 
-def LAYOUT_DATA(layoutType: LayoutType):
-    if layoutType not in LAYOUT_DATA_CACHE:
+def LAYOUT_DATA(layoutType: LayoutType, isPlaytest: bool = False):
+    cacheKey = (layoutType, isPlaytest)
+    cardSize = CARD_SIZE_PLAYTEST if isPlaytest else CARD_SIZE
+    if cacheKey not in LAYOUT_DATA_CACHE:
         if layoutType in [*LAYOUT_TYPES_TWO_PARTS, *LAYOUT_TYPES_DF]:
-            LAYOUT_DATA_CACHE[layoutType] = [calcLayoutData(
+            LAYOUT_DATA_CACHE[cacheKey] = [calcLayoutData(
                 template=TEMPLATE_LAYOUT_DATA,
+                cardSize=cardSize,
                 layoutType=layoutType,
                 part=i
             ) for i in range(2)]
         else:
-            LAYOUT_DATA_CACHE[layoutType] = [calcLayoutData(
+            LAYOUT_DATA_CACHE[cacheKey] = [calcLayoutData(
                 template=TEMPLATE_LAYOUT_DATA,
+                cardSize=cardSize,
                 layoutType=layoutType
             )]
             
-    return LAYOUT_DATA_CACHE[layoutType]
+    return LAYOUT_DATA_CACHE[cacheKey]

@@ -7,10 +7,10 @@ from pathlib import Path
 import os
 import argparse
 
-from bwproxy import drawCard, loadCards, paginate, PageFormat
+from bwproxy import drawCard, loadCards, paginate, PageFormat, CardSize
 
 def main():
-    parser = argparse.ArgumentParser(description="Generate printable MTG proxies")
+    parser = argparse.ArgumentParser(description="Black and white MTG proxy generator")
     parser.add_argument(
         "decklistPath",
         metavar="decklist_path",
@@ -38,18 +38,22 @@ def main():
         help="print card frames and mana symbols in color",
     )
     parser.add_argument(
+        "--no-symbols",
         "--no-text-symbols",
         action="store_false",
         dest="useTextSymbols",
         help="print cards with e.g. {W} instead of the corresponding symbol",
     )
     parser.add_argument(
-        "--small",
+        "--size",
         "-s",
-        action="store_true",
-        help="print cards at 75%% in size, allowing to fit more in one page",
+        default=CardSize.STANDARD.value,
+        choices=list(CardSize.values()),
+        dest="cardSize",
+        help="the size the card wil be printed at"
     )
     parser.add_argument(
+        "--no-space",
         "--no-card-space",
         action="store_true",
         dest="noCardSpace",
@@ -62,8 +66,8 @@ def main():
         help="print full art basic lands instead of big symbol basic lands",
     )
     parser.add_argument(
-        "--ignore-basic-lands",
-        "--ignore-basics",
+        "--no-basics",
+        "--no-basic-lands",
         action="store_true",
         dest="ignoreBasicLands",
         help="skip basic lands when generating images",
@@ -100,6 +104,7 @@ def main():
         fileLoc=decklistPath,
         ignoreBasicLands=args.ignoreBasicLands,
         alternativeFrames=args.alternativeFrames,
+        usePlaytestSize=args.cardSize == CardSize.PLAYTEST.value
     )
     
     images: List[Image.Image] = []
@@ -120,7 +125,8 @@ def main():
     
     pages = paginate(
         images=images,
-        small=args.small,
+        cardSize=cardsWithCount[0][0].layoutData.CARD_SIZE,
+        small=args.cardSize == CardSize.SMALL.value,
         pageFormat=pageFormat,
         noCardSpace=args.noCardSpace,
     )

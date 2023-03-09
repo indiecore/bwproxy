@@ -40,8 +40,14 @@ class XY(NamedTuple):
     def transpose(self) -> Self:
         return XY(self[1], self[0])
 
+class ValuedEnum(Enum):
+    @classmethod
+    def values(cls) -> Iterable[str]:
+        for x in cls:
+            yield x.value
 
-class LayoutType(Enum):
+
+class LayoutType(ValuedEnum):
     STD = "standard"
     SPL = "split"
     FUS = "fuse"
@@ -57,40 +63,25 @@ class LayoutType(Enum):
     MDF = "modal_dfc"
     ATR = "attraction"
 
-    @classmethod
-    def values(cls) -> Iterable[str]:
-        for x in cls:
-            yield x.value
-
-class ManaColors(Enum):
+class ManaColors(ValuedEnum):
     White = "W"
     Blue = "U"
     Black = "B"
     Red = "R"
     Green = "G"
-    
-    @classmethod
-    def values(cls) -> Iterable[str]:
-        for x in cls:
-            yield x.value
 
-class FrameColors(Enum):
+class FrameColors(ValuedEnum):
     Multicolor = "M"
     Colorless = "C"
 
-    @classmethod
-    def values(cls) -> Iterable[str]:
-        for x in cls:
-            yield x.value
-
-class PageFormat(Enum):
+class PageFormat(ValuedEnum):
     A4 = "a4paper"
     LETTER = "letter"
 
-    @classmethod
-    def values(cls) -> Iterable[str]:
-        for x in cls:
-            yield x.value
+class CardSize(ValuedEnum):
+    STANDARD = "standard"
+    SMALL = "small"
+    PLAYTEST = "playtest"
 
 Rot = Literal[2, 3, 4]
 
@@ -183,4 +174,5 @@ class LayoutData():
         self.FONT_MIDDLE: FontMiddle = FONT_MIDDLE
         self.ICON_CENTER: XY
         self.IMAGE_POSITION: XY
+        self.CARD_SIZE: XY
 

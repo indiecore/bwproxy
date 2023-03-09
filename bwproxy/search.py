@@ -159,7 +159,8 @@ def loadCards(
     fileLoc: Path | None = None,
     requestedCards: str | None = None,
     ignoreBasicLands: bool = False,
-    alternativeFrames: bool = False
+    alternativeFrames: bool = False,
+    usePlaytestSize: bool = False
 ) -> List[Tuple[LayoutCard, int]]:
     """
     Search the requested cards' data. The requested data can be specified
@@ -285,7 +286,8 @@ def loadCards(
                 (
                     LayoutCard(
                         tokenData.data,
-                        alternativeFrames
+                        alternativeFrames,
+                        isPlaytest=usePlaytestSize,
                     ),
                     cardCount
                 )
@@ -303,7 +305,8 @@ def loadCards(
             cardData = LayoutCard(
                 cardCache[cardName],
                 alternativeFrames,
-                flavorName
+                flavorName,
+                isPlaytest=usePlaytestSize,
             )
         else:
             print(f"{cardName} not in cache. searching...")
@@ -311,7 +314,8 @@ def loadCards(
                 cardData = LayoutCard.from_name(
                     cardName,
                     alternativeFrames,
-                    flavorName
+                    flavorName,
+                    isPlaytest=usePlaytestSize,
                 )
             except ScryfallError as err:
                 print(f"Skipping {cardName}. {err}")
