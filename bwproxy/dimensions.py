@@ -182,18 +182,18 @@ def calcLayoutData(
         layoutData.BORDER.CREDITS = layoutData.BORDER.RULES.BOTTOM
 
     
-    # Calculating PTL box borders
-    layoutData.BORDER.PTL_BOX.BOTTOM = (
+    # Calculating bottom box borders
+    layoutData.BORDER.BOTTOM_BOX.BOTTOM = (
         # We are not using BORDER.CARD.BOTTOM because it does not work
         # for flip cards (for that it would be BORDER.IMAGE)
         layoutData.BORDER.CREDITS + layoutData.SIZE.CREDITS
     )
-    layoutData.BORDER.PTL_BOX.TOP = layoutData.BORDER.PTL_BOX.BOTTOM - layoutData.SIZE.PTL_BOX.VERT
-    layoutData.BORDER.PTL_BOX.RIGHT = layoutData.BORDER.RULES.RIGHT - 15 # Box is 15 pixels left
-    layoutData.BORDER.PTL_BOX.LEFT = layoutData.BORDER.PTL_BOX.RIGHT - layoutData.SIZE.PTL_BOX.HORIZ
-    # Calculating PTL font position
-    layoutData.FONT_MIDDLE.PTL_H = layoutData.BORDER.PTL_BOX.LEFT + layoutData.SIZE.PTL_BOX.HORIZ // 2
-    layoutData.FONT_MIDDLE.PTL_V = layoutData.BORDER.PTL_BOX.TOP + layoutData.SIZE.PTL_BOX.VERT // 2 + BORDER_CENTER_OFFSET
+    layoutData.BORDER.BOTTOM_BOX.TOP = layoutData.BORDER.BOTTOM_BOX.BOTTOM - layoutData.SIZE.BOTTOM_BOX.VERT
+    layoutData.BORDER.BOTTOM_BOX.RIGHT = layoutData.BORDER.RULES.RIGHT - 15 # Box is 15 pixels left
+    layoutData.BORDER.BOTTOM_BOX.LEFT = layoutData.BORDER.BOTTOM_BOX.RIGHT - layoutData.SIZE.BOTTOM_BOX.HORIZ
+    # Calculating bottom font position
+    layoutData.FONT_MIDDLE.BOTTOM_H = layoutData.BORDER.BOTTOM_BOX.LEFT + layoutData.SIZE.BOTTOM_BOX.HORIZ // 2
+    layoutData.FONT_MIDDLE.BOTTOM_V = layoutData.BORDER.BOTTOM_BOX.TOP + layoutData.SIZE.BOTTOM_BOX.VERT // 2 + BORDER_CENTER_OFFSET
 
     # Layouts needing adjustments to rules box or non-standard sections
     # Main adventure part has the other part on the left
@@ -267,7 +267,7 @@ TEMPLATE_LAYOUT_DATA: LayoutData = calcLayoutData(
             IMAGE = -1,
             TYPE = 55,
             RULES = SizeData(),
-            PTL_BOX = SizeData(
+            BOTTOM_BOX = SizeData(
                 HORIZ = 160,
                 VERT = 60,
             ),

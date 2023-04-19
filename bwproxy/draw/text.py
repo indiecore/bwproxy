@@ -1,4 +1,4 @@
-from typing import Tuple, List, Dict, Match, Optional, Any, overload # type: ignore
+from typing import Tuple, List, Dict, Match, Optional, Any, overload, cast # type: ignore
 from PIL import Image, ImageDraw, ImageFont
 import re
 import sys
@@ -13,7 +13,7 @@ BLACK = (0, 0, 0)
 
 # This or pyinstaller does not work, see https://stackoverflow.com/a/13790741
 try:
-    basePath: str = sys._MEIPASS # type: ignore
+    basePath = cast(str, sys._MEIPASS) # type: ignore
 except:
     basePath = os.path.abspath('.')
 
@@ -561,11 +561,11 @@ def drawFuseText(card: LayoutCard, image: Image.Image) -> Image.Image:
     return image
 
 
-def drawPTL(
+def drawBottomData(
     card: LayoutCard, image: Image.Image
 ) -> Image.Image:
     """
-    Draws Power / Toughness or Loyalty (if present) on the PTL box
+    Draws bottom data (Power / Toughness, Loyalty or defense) (if present) on the bottom box
     """
 
     layoutData = card.layoutData
@@ -575,25 +575,27 @@ def drawPTL(
         image = image.transpose(rotation[0])
 
     if card.hasPT():
-        ptl = f"{card.power}/{card.toughness}"
+        bottomData = f"{card.power}/{card.toughness}"
     elif card.hasL():
-        ptl = card.loyalty
+        bottomData = card.loyalty
+    elif card.hasD():
+        bottomData = card.defense
     else:
         return image
 
     pen = ImageDraw.Draw(image)
 
-    ptlFont = fitOneLine(
+    bottomDataFont = fitOneLine(
         fontPath=RULES_FONT,
-        text=ptl,
-        maxWidth=layoutData.SIZE.PTL_BOX.HORIZ - 2 * DRAW_SIZE.SEPARATOR,
+        text=bottomData,
+        maxWidth=layoutData.SIZE.BOTTOM_BOX.HORIZ - 2 * DRAW_SIZE.SEPARATOR,
         fontSize=DRAW_SIZE.TITLE,
     )
 
     pen.text(
-        (layoutData.FONT_MIDDLE.PTL_H, layoutData.FONT_MIDDLE.PTL_V),
-        text=ptl,
-        font=ptlFont,
+        (layoutData.FONT_MIDDLE.BOTTOM_H, layoutData.FONT_MIDDLE.BOTTOM_V),
+        text=bottomData,
+        font=bottomDataFont,
         fill=BLACK,
         anchor="mm",
     )
@@ -716,8 +718,8 @@ def drawText(
             image=image,
             useTextSymbols=useTextSymbols,
         )
-        if face.hasPTL():
-            image = drawPTL(card=face, image=image)
+        if face.hasBottomData():
+            image = drawBottomData(card=face, image=image)
         image = drawCredits(card=face, image=image)
 
     if card.layout == LayoutType.FUS:

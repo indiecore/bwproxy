@@ -125,7 +125,7 @@ class Border():
         self.IMAGE: int = -1
         self.TYPE: int = -1
         self.RULES: BorderData = BorderData()
-        self.PTL_BOX: BorderData = BorderData()
+        self.BOTTOM_BOX: BorderData = BorderData()
         self.CREDITS: int = -1
         self.FUSE: BorderData
         self.ATTRACTION: BorderData
@@ -138,7 +138,7 @@ class Size():
         IMAGE: int,
         TYPE: int,
         RULES: SizeData,
-        PTL_BOX: SizeData,
+        BOTTOM_BOX: SizeData,
         CREDITS: int,
     ):
         self.CARD: SizeData = CARD
@@ -146,7 +146,7 @@ class Size():
         self.IMAGE: int = IMAGE
         self.TYPE: int = TYPE
         self.RULES: SizeData = RULES
-        self.PTL_BOX: SizeData = PTL_BOX
+        self.BOTTOM_BOX: SizeData = BOTTOM_BOX
         self.CREDITS: int = CREDITS
         self.FUSE: SizeData
         self.ATTRACTION: SizeData
@@ -155,8 +155,8 @@ class FontMiddle():
     def __init__(
         self,
     ):
-        self.PTL_H: int = -1
-        self.PTL_V: int = -1
+        self.BOTTOM_H: int = -1
+        self.BOTTOM_V: int = -1
         self.FUSE_V: int
         self.ATTRACTION_H: int
 

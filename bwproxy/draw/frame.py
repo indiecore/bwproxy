@@ -61,11 +61,11 @@ def makeFrameBlack(
         drawStandardRectangle(pen, layoutData, layoutData.BORDER.CREDITS)
         drawStandardRectangle(pen, layoutData, layoutData.BORDER.CARD.BOTTOM)
 
-        if face.hasPTL():
+        if face.hasBottomData():
             pen.rectangle(
                 (
-                    (layoutData.BORDER.PTL_BOX.LEFT, layoutData.BORDER.PTL_BOX.TOP),
-                    (layoutData.BORDER.PTL_BOX.RIGHT, layoutData.BORDER.PTL_BOX.BOTTOM)
+                    (layoutData.BORDER.BOTTOM_BOX.LEFT, layoutData.BORDER.BOTTOM_BOX.TOP),
+                    (layoutData.BORDER.BOTTOM_BOX.RIGHT, layoutData.BORDER.BOTTOM_BOX.BOTTOM)
                 ),
                 outline=BLACK,
                 fill=WHITE,

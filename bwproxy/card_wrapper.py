@@ -68,7 +68,9 @@ class Card:
 
     def __repr__(self) -> str:
         return str(self)
-
+    
+    def __getattr__(self, name: str) -> str:
+        return self._getKey(name)
 
     _colorRe = re.compile(r"[WUBRG]")
 
@@ -130,6 +132,10 @@ class Card:
     @property
     def loyalty(self) -> str:
         return self._getKey("loyalty")
+    
+    @property
+    def defense(self) -> str:
+        return self._getKey("defense")
 
     @property
     def layout(self) -> LayoutType:
@@ -275,9 +281,12 @@ class Card:
 
     def hasL(self) -> bool:
         return self._hasKey("loyalty")
+    
+    def hasD(self) -> bool:
+        return self._hasKey("defense")
 
-    def hasPTL(self) -> bool:
-        return self.hasPT() or self.hasL()
+    def hasBottomData(self) -> bool:
+        return self.hasPT() or self.hasL() or self.hasD()
 
     def isToken(self) -> bool:
         """
