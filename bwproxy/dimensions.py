@@ -76,7 +76,7 @@ def calcLayoutData(
 
     - The layout type;
 
-    - The necessary rotation to view the card (or card part) correcly;
+    - The necessary rotation to view the card (or card part) correctly;
     
     - The borders for the different card sections
     (whole card, image, type line, rules box, credits line).
@@ -144,7 +144,7 @@ def calcLayoutData(
         layoutData.SIZE.RULES.VERT = 250
 
     else:
-        layoutData.SIZE.RULES.VERT = 500
+        layoutData.SIZE.RULES.VERT = 303
 
     # Default borders for rules box
     layoutData.BORDER.RULES.LEFT = layoutData.BORDER.CARD.LEFT

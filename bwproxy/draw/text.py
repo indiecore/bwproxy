@@ -97,7 +97,7 @@ def fitOneLine(fontPath: str, text: str, maxWidth: int, fontSize: int) -> ImageF
     including title, mana cost, and type line.
     """
     font = ImageFont.truetype(fontPath, fontSize)
-    while font.getsize(text)[0] > maxWidth:
+    while font.getbbox(text)[2] > maxWidth:
         fontSize -= 3
         font = ImageFont.truetype(fontPath, fontSize)
     return font
@@ -138,7 +138,7 @@ def fitMultiLine(
         ruleLines: List[str] = []
         curLine = ""
         for word in rule.split(" "):
-            if font.getsize(curLine + " " + word)[0] > maxWidth:
+            if font.getbbox(curLine + " " + word)[2] > maxWidth:
                 ruleLines.append(curLine)
                 curLine = word + " "
             else:
@@ -148,7 +148,7 @@ def fitMultiLine(
 
     formattedText = "\n\n".join(formattedRules)
 
-    if font.getsize(formattedText)[1] * len(formattedText.split("\n")) > maxHeight:
+    if font.getbbox(formattedText)[3] * len(formattedText.split("\n")) > maxHeight:
         return fitMultiLine(fontPath, cardText, maxWidth, maxHeight, fontSize - 3)
     else:
         return (formattedText, font)
@@ -256,7 +256,7 @@ def drawTitleLine(
         fill=BLACK,
         anchor="rs",
     )
-    xPos = manaCornerRight - manaFont.getsize(manaCost)[0]
+    xPos = manaCornerRight - manaFont.getbbox(manaCost)[2]
     alignNameLeft = layoutData.BORDER.CARD.LEFT + DRAW_SIZE.SEPARATOR
     maxNameWidth = xPos - alignNameLeft - DRAW_SIZE.SEPARATOR
 
@@ -289,7 +289,7 @@ def drawTitleLine(
             fill=BLACK,
             anchor="ls",
         )
-        faceSymbolSpace = faceSymbolFont.getsize(faceSymbol)[0]
+        faceSymbolSpace = faceSymbolFont.getbbox(faceSymbol)[2]
         alignNameLeft += faceSymbolSpace
         maxNameWidth -= faceSymbolSpace
 

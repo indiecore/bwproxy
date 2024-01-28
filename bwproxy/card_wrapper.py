@@ -46,6 +46,11 @@ class Card:
         if "Emblem" in self.type_line:
             self.data["name"] = self.data["name"].replace(" Emblem", "")
 
+        if "image_uris" in self.data:
+            print(f"Card: {self.data["name"]} has art {self.data["image_uris"]["art_crop"]}")
+        else:
+            print(f"Card: {self.data["name"]} does not have art.")
+
 
     def _hasKey(self, attr: str) -> bool:
         """
@@ -136,6 +141,13 @@ class Card:
     @property
     def defense(self) -> str:
         return self._getKey("defense")
+    
+    @property
+    def art_crop(self) -> str:
+        if self._hasKey("image_uris") and "art_crop" in self.data["image_uris"]:
+            return self.data["image_uris"]["art_crop"]
+        else:
+            return ""
 
     @property
     def layout(self) -> LayoutType:

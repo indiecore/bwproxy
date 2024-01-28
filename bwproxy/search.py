@@ -1,4 +1,6 @@
 from __future__ import annotations
+from time import sleep
+
 from typing import List, Optional, Dict, Tuple
 from scrython import Search, ScryfallError
 from pathlib import Path
@@ -10,6 +12,8 @@ import json
 from .classes import LayoutType, ManaColors, JsonDict # type: ignore
 from .card_wrapper import Card, LayoutCard
 from .other_constants import CARD_TYPES, CARD_SUPERTYPES, BASIC_LANDS, LAYOUT_TYPES_DF
+
+
 
 
 # Cards and Tokens/Emblems have different caches, since there are cards with the same name as tokens
@@ -269,6 +273,7 @@ def loadCards(
             else:
                 print(f"{cardName} not in cache. searching...")
                 tokenList = searchToken(tokenName=cardName, tokenType=tokenType)
+                sleep(0.1)
 
                 if len(tokenList) == 0:
                     print(f"Skipping {cardName}. No corresponding tokens found.")
