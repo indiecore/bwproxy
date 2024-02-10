@@ -1,5 +1,5 @@
 import urllib.request 
-from PIL import Image, ImageDraw, ImageColor, ImageOps, ImageFilter, ImageChops
+from PIL import Image, ImageDraw, ImageColor, ImageOps, ImageFilter, ImageChops, ImageEnhance
 
 import numpy as np
 from pprint import pprint
@@ -35,41 +35,43 @@ def drawStandardRectangle(pen: ImageDraw.ImageDraw, layout: LayoutData, bottom: 
         width=DRAW_SIZE.BORDER,
     )
 
-def drawCardArt(card:LayoutCard, pen: ImageDraw.Image, layout: LayoutData, bottom: int) -> None:
+def drawCardArt(card:LayoutCard, pen: ImageDraw.Image, layout: LayoutData, threshold: int, blur_factor: int) -> None:
     url = card.art_crop;
 
     urllib.request.urlretrieve(url, "test.png") 
+
     img = Image.open("test.png")
 
     grayImg = img.convert("L")
     grayImg = grayImg.filter(filter=ImageFilter.SMOOTH_MORE)
     
-    threshold = 40
+    if card.options and card.options.THRESHOLD >= 0:
+        threshold = card.options.THRESHOLD
+
     thresholded = grayImg.point(lambda p : p > threshold and 255)
 
     inverted = grayImg.point(lambda i: 255 - i) # invert
-    blurredImage = inverted.filter(filter=ImageFilter.BLUR)
+
+    if (card.options and card.options.BLUR >= 0):
+        blur_factor = card.options.BLUR
+
+    blurredImage = inverted.filter(filter=ImageFilter.GaussianBlur(blur_factor))
 
     result = Image.fromarray(dodge(np.asarray(blurredImage), np.asarray(grayImg)))
+    result = result.filter(filter=ImageFilter.SHARPEN)
     result = result.filter(filter=ImageFilter.EDGE_ENHANCE)
 
     result = ImageChops.multiply(thresholded, result)
 
-    originalRatio = img.height / img.width;
+    originalRatio = img.height / img.width
     imgWidth = card.layoutData.CARD_SIZE.h
 
     result = result.resize((imgWidth, round(imgWidth * originalRatio)))
 
     pen.paste(
         result,
-        (DRAW_SIZE.BORDER, bottom)
+        (DRAW_SIZE.BORDER, layout.BORDER.IMAGE)
     )
-
-def greyscale(greyShades:int, pixel):
-    conversionFactor = 255 / 3
-    average = (pixel[0] + pixel[1] + pixel[2]) / 3;
-    grey = round(average//conversionFactor * conversionFactor);
-    return (grey, grey, grey)
 
 def dodge(front, back) -> np.ndarray:
     result=back*256.0/(256.0-front) 
@@ -94,14 +96,15 @@ def makeFrameBlack(
     for face in card.card_faces:
 
         layoutData = face.layoutData
-        pprint(vars(face.layoutData.BORDER))
         rotation = layoutData.ROTATION
         if rotation is not None:
             frame = frame.transpose(rotation[0])
 
         pen = ImageDraw.Draw(frame)
 
-        drawCardArt(card, frame, layoutData, layoutData.BORDER.IMAGE)
+        if not face.isTokenOrEmblem() and face.layout != LayoutType.LND:
+            drawCardArt(card, frame, layoutData, 40, 8)
+
         drawStandardRectangle(pen, layoutData, layoutData.BORDER.IMAGE)
         drawStandardRectangle(pen, layoutData, layoutData.BORDER.TYPE)
         drawStandardRectangle(pen, layoutData, layoutData.BORDER.RULES.TOP)

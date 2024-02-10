@@ -5,7 +5,7 @@ from scrython import Named
 from copy import deepcopy
 import re
 
-from .classes import LayoutType, LayoutData, ManaColors, JsonDict
+from .classes import LayoutType, LayoutData, ManaColors, JsonDict, CardOptions
 from .other_constants import VERSION, ACORN_PLAINTEXT, BASIC_LANDS, LAYOUT_TYPES_DF
 from .dimensions import LAYOUT_DATA
 
@@ -45,12 +45,6 @@ class Card:
         # Setting info for Emblem and Tokens
         if "Emblem" in self.type_line:
             self.data["name"] = self.data["name"].replace(" Emblem", "")
-
-        if "image_uris" in self.data:
-            print(f"Card: {self.data["name"]} has art {self.data["image_uris"]["art_crop"]}")
-        else:
-            print(f"Card: {self.data["name"]} does not have art.")
-
 
     def _hasKey(self, attr: str) -> bool:
         """
@@ -363,13 +357,20 @@ class LayoutCard(Card):
         alternativeFrames: bool = False,
         flavorName: str | None = None,
         isPlaytest: bool = False,
+        options:CardOptions = None,
     ) -> Self:
-        named: Named = Named(fuzzy=name)
+        set = ""
+
+        if (options):
+            set = options.SET
+
+        named: Named = Named(fuzzy=name, set=set)
         return LayoutCard(
             named,
             alternativeFrames,
             flavorName,
             isPlaytest,
+            options,
         )
 
     def __init__(
@@ -378,11 +379,13 @@ class LayoutCard(Card):
         alternativeFrames: bool = False,
         flavorName: str | None = None,
         isPlaytest: bool = False,
+        options:CardOptions=None
     ):
         super().__init__(card)
         self.__flavorName = flavorName
         self.__alternativeFrames = alternativeFrames
         self.__isPlaytest = isPlaytest
+        self.options = options
     
     @property
     def layout(self) -> LayoutType:

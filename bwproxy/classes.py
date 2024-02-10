@@ -116,6 +116,25 @@ class SizeData():
     def __repr__(self) -> str:
         return f"H: {self.HORIZ}, V: {self.VERT}"
 
+
+class CardOptions():
+    """ CardOptions represents any additional options that the user can specify in a comment after the card declaration in their decklist
+    """
+    def __init__(self, threshold:int, blurKernel:int, set:str) -> None:
+        """Create a CardOptions class
+
+        Keyword Arguments:
+        threshold -- Used when converting the card art to B/W to specify the thresholding value which will black out highly exposed areas.
+        blurKernel -- Used when converting the card art to B/W to specify the blur kernel used during the blurring step. This will sharpen thin lines in the image but will lose fine detail if too high.
+        set -- The set code specified by the user. If no set code has been supplied it is assumed that the user wants the default scryfall return.
+        """
+        self.SET = set
+        self.THRESHOLD = threshold
+        self.BLUR = blurKernel
+
+    def __repr__(self) -> str:
+        return f"Threshold: {self.THRESHOLD} Blur Kernel: {self.BLUR}"
+
 class Border():
     def __init__(
         self,
