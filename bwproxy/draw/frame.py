@@ -38,11 +38,12 @@ def drawStandardRectangle(pen: ImageDraw.ImageDraw, layout: LayoutData, bottom: 
 def drawCardArt(card:LayoutCard, pen: ImageDraw.Image, layout: LayoutData, threshold: int, blur_factor: int) -> None:
     url = card.art_crop;
 
-    urllib.request.urlretrieve(url, "test.png") 
+    urllib.request.urlretrieve(url, "tmp-img.png")
 
-    img = Image.open("test.png")
+    img = Image.open("tmp-img.png")
 
     grayImg = img.convert("L")
+    
     grayImg = grayImg.filter(filter=ImageFilter.SMOOTH_MORE)
     
     if card.options and card.options.THRESHOLD >= 0:

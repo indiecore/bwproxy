@@ -5,4 +5,5 @@ output/
 icons/
 tmp/
 test.png
+tmp-img.png
 .vscode
