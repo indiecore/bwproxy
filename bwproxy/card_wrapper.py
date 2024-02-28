@@ -142,6 +142,10 @@ class Card:
             return self.data["image_uris"]["art_crop"]
         else:
             return ""
+    
+    @property
+    def artist(self) -> str:
+        return self._getKey("artist")
 
     @property
     def layout(self) -> LayoutType:

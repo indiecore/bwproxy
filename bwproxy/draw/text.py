@@ -626,16 +626,17 @@ def drawCredits(
     pen = ImageDraw.Draw(image)
     fontSize = DRAW_SIZE.CREDITS_PLAYTEST if card.isPlaytestSize() else DRAW_SIZE.CREDITS
 
+    creditsText = CREDITS.format(card.artist) + " " + VERSION;
     credFont = fitOneLine(
         fontPath=RULES_FONT,
-        text=CREDITS + VERSION,
+        text=creditsText,
         maxWidth=layoutData.SIZE.CARD.HORIZ - 2 * DRAW_SIZE.SEPARATOR,
         fontSize=fontSize,
     )
 
     alignCreditsAscendant = calcAscendantValue(
         font=credFont,
-        text=CREDITS + VERSION,
+        text=creditsText + VERSION,
         upperBorder=layoutData.BORDER.CREDITS,
         spaceSize=layoutData.SIZE.CREDITS,
     )
@@ -645,25 +646,12 @@ def drawCredits(
             alignCreditsLeft,
             alignCreditsAscendant
         ),
-        text=CREDITS,
+        text=creditsText,
         font=credFont,
         fill=BLACK,
         anchor="ls",
     )
-    credLength = pen.textlength(text=CREDITS, font=credFont)
-
-    pen.text(
-        (
-            alignCreditsLeft + credLength,
-            alignCreditsAscendant
-        ),
-        text=VERSION,
-        font=credFont,
-        fill=BLACK,
-        anchor="ls",
-        # stroke_width=1,
-    )
-
+   
     if rotation is not None:
         image = image.transpose(rotation[1])
 
