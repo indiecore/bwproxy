@@ -94,6 +94,7 @@ def makeFrameBlack(
     # Card border
     pen.rectangle(((0, 0), cardSize), outline=BLACK, width=5)
 
+    faceCount = 0;
     for face in card.card_faces:
 
         layoutData = face.layoutData
@@ -103,7 +104,15 @@ def makeFrameBlack(
 
         pen = ImageDraw.Draw(frame)
 
-        if not face.isTokenOrEmblem() and face.layout != LayoutType.LND:
+        drawArt = True
+        
+        if (face.isTokenOrEmblem() and face.layout != LayoutType.LND):
+            drawArt = False
+
+        if (drawArt and faceCount > 0 and face.layout == LayoutType.ADV):
+            drawArt = False # We don't want to draw art for the second part of adventure cards.
+
+        if drawArt:
             drawCardArt(card, frame, layoutData, 40, 8)
 
         drawStandardRectangle(pen, layoutData, layoutData.BORDER.IMAGE)
@@ -162,6 +171,8 @@ def makeFrameBlack(
 
         if rotation is not None:
             frame = frame.transpose(rotation[1])
+
+        faceCount += 1
 
     return frame
 
