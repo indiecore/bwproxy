@@ -423,7 +423,8 @@ class LayoutCard(Card):
                     face,
                     self.__alternativeFrames,
                     flavorName = None,
-                    isPlaytest = self.__isPlaytest 
+                    isPlaytest = self.__isPlaytest,
+                    options=self.options 
                 )
                 for face in super().card_faces
             ]

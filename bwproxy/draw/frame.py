@@ -64,10 +64,14 @@ def drawCardArt(card:LayoutCard, pen: ImageDraw.Image, layout: LayoutData, botto
 
     result = ImageChops.multiply(thresholded, result)
 
-    originalHeightRatio = img.width / img.height;
-    imgHeight =  bottom - layout.SIZE.TITLE;
 
-    result = result.resize((round(img.height * originalHeightRatio), imgHeight))
+    originalWidthRatio = img.height / img.width;
+    originalHeightRatio = img.width / img.height;
+    imgSpace =  bottom - layout.SIZE.TITLE;
+    imageHeight = imgSpace * originalHeightRatio;
+
+    result = result.resize((round(imageHeight), imgSpace))
+    # result = result.resize((card.layoutData.CARD_SIZE.v, round(img.width * originalWidthRatio)))
     xOffset = (card.layoutData.CARD_SIZE.h - result.width) // 2;
     pen.paste(
         result,
@@ -105,8 +109,7 @@ def makeFrameBlack(
         pen = ImageDraw.Draw(frame)
 
         drawArt = True
-        
-        if (face.isTokenOrEmblem() and face.layout != LayoutType.LND):
+        if (face.isTokenOrEmblem() or face.layout == LayoutType.LND):
             drawArt = False
 
         if (drawArt and faceCount > 0 and face.layout == LayoutType.ADV):
