@@ -35,7 +35,7 @@ def drawStandardRectangle(pen: ImageDraw.ImageDraw, layout: LayoutData, bottom: 
         width=DRAW_SIZE.BORDER,
     )
 
-def drawCardArt(card:LayoutCard, pen: ImageDraw.Image, layout: LayoutData, threshold: int, blur_factor: int) -> None:
+def drawCardArt(card:LayoutCard, pen: ImageDraw.Image, layout: LayoutData, bottom: int, threshold: int, blur_factor: int) -> None:
     url = card.art_crop;
 
     urllib.request.urlretrieve(url, "tmp-img.png")
@@ -64,14 +64,18 @@ def drawCardArt(card:LayoutCard, pen: ImageDraw.Image, layout: LayoutData, thres
 
     result = ImageChops.multiply(thresholded, result)
 
-    originalRatio = img.height / img.width
-    imgWidth = card.layoutData.CARD_SIZE.h
 
-    result = result.resize((imgWidth, round(imgWidth * originalRatio)))
+    originalWidthRatio = img.height / img.width;
+    originalHeightRatio = img.width / img.height;
+    imgSpace =  bottom - layout.SIZE.TITLE;
+    imageHeight = imgSpace * originalHeightRatio;
 
+    result = result.resize((round(imageHeight), imgSpace))
+    # result = result.resize((card.layoutData.CARD_SIZE.v, round(img.width * originalWidthRatio)))
+    xOffset = (card.layoutData.CARD_SIZE.h - result.width) // 2;
     pen.paste(
         result,
-        (DRAW_SIZE.BORDER, layout.BORDER.IMAGE)
+        (DRAW_SIZE.BORDER + xOffset, layout.BORDER.IMAGE)
     )
 
 def dodge(front, back) -> np.ndarray:
@@ -105,17 +109,17 @@ def makeFrameBlack(
         pen = ImageDraw.Draw(frame)
 
         drawArt = True
-        
-        if (face.isTokenOrEmblem() and face.layout != LayoutType.LND):
+        if (face.isTokenOrEmblem() or face.layout == LayoutType.LND):
             drawArt = False
 
         if (drawArt and faceCount > 0 and face.layout == LayoutType.ADV):
             drawArt = False # We don't want to draw art for the second part of adventure cards.
 
-        if drawArt:
-            drawCardArt(card, frame, layoutData, 40, 8)
-
         drawStandardRectangle(pen, layoutData, layoutData.BORDER.IMAGE)
+
+        if drawArt:
+            drawCardArt(card, frame, layoutData, layoutData.BORDER.TYPE, 40, 8)
+
         drawStandardRectangle(pen, layoutData, layoutData.BORDER.TYPE)
         drawStandardRectangle(pen, layoutData, layoutData.BORDER.RULES.TOP)
         drawStandardRectangle(pen, layoutData, layoutData.BORDER.CREDITS)

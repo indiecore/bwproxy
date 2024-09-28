@@ -231,7 +231,7 @@ def loadCards(
         threshold = -1;
         blur = -1;
         if (comments):
-            setRegex = re.compile(r"set\s*=\s*([\S]{3})\s?")
+            setRegex = re.compile(r"set\s*=\s*([\S]+)\s?")
             thresholdRegex = re.compile(r"threshold\s*=\s*([0-9]*)\s?");
             blurRegex = re.compile(r"blur\s*=\s*([0-9]*)\s?");
 

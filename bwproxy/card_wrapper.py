@@ -142,6 +142,10 @@ class Card:
             return self.data["image_uris"]["art_crop"]
         else:
             return ""
+    
+    @property
+    def artist(self) -> str:
+        return self._getKey("artist")
 
     @property
     def layout(self) -> LayoutType:
@@ -419,7 +423,8 @@ class LayoutCard(Card):
                     face,
                     self.__alternativeFrames,
                     flavorName = None,
-                    isPlaytest = self.__isPlaytest 
+                    isPlaytest = self.__isPlaytest,
+                    options=self.options 
                 )
                 for face in super().card_faces
             ]
