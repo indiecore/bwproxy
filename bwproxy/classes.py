@@ -62,6 +62,12 @@ class LayoutType(ValuedEnum):
     TDF = "transform"
     MDF = "modal_dfc"
     ATR = "attraction"
+    BTL = "battle"
+    CLS = "class"
+    SGA = "saga"
+    CAS = "case"
+    ROOM = "room"
+
 
 class ManaColors(ValuedEnum):
     White = "W"
@@ -142,6 +148,7 @@ class Border():
     ):
         self.CARD: BorderData = CARD
         self.IMAGE: int = -1
+        self.ART: BorderData = BorderData()
         self.TYPE: int = -1
         self.RULES: BorderData = BorderData()
         self.BOTTOM_BOX: BorderData = BorderData()

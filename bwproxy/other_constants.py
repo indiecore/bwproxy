@@ -25,7 +25,8 @@ CARD_TYPES = [
     "Instant",
     "Sorcery",
     "Planeswalker",
-    "Tribal",
+    "Kindred",
+    "Battle"
 ]
 
 BASIC_LANDS_NONSNOW = ["Plains", "Island", "Swamp", "Mountain", "Forest", "Wastes"]

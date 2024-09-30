@@ -65,17 +65,19 @@ def drawCardArt(card:LayoutCard, pen: ImageDraw.Image, layout: LayoutData, botto
     result = ImageChops.multiply(thresholded, result)
 
 
-    originalWidthRatio = img.height / img.width;
-    originalHeightRatio = img.width / img.height;
-    imgSpace =  bottom - layout.SIZE.TITLE;
-    imageHeight = imgSpace * originalHeightRatio;
+    originalWidthRatio = img.height / img.width
+    originalHeightRatio = img.width / img.height
 
+    imgSpace =  layout.BORDER.ART.BOTTOM - layout.BORDER.ART.TOP
+    imageHeight = imgSpace * originalHeightRatio
     result = result.resize((round(imageHeight), imgSpace))
-    # result = result.resize((card.layoutData.CARD_SIZE.v, round(img.width * originalWidthRatio)))
-    xOffset = (card.layoutData.CARD_SIZE.h - result.width) // 2;
+    xOffset = ((layout.BORDER.ART.RIGHT - layout.BORDER.ART.LEFT) - result.width) // 2
+
     pen.paste(
         result,
-        (DRAW_SIZE.BORDER + xOffset, layout.BORDER.IMAGE)
+        (
+            layout.BORDER.ART.LEFT + xOffset, layout.BORDER.ART.TOP
+        )
     )
 
 def dodge(front, back) -> np.ndarray:
@@ -115,7 +117,28 @@ def makeFrameBlack(
         if (drawArt and faceCount > 0 and face.layout == LayoutType.ADV):
             drawArt = False # We don't want to draw art for the second part of adventure cards.
 
-        drawStandardRectangle(pen, layoutData, layoutData.BORDER.IMAGE)
+        if (face.layout == LayoutType.SGA or face.layout == LayoutType.CAS):
+            pen.line(
+                (
+                    (layoutData.BORDER.ART.LEFT, layoutData.BORDER.ART.TOP),
+                    (layoutData.BORDER.ART.LEFT, layoutData.BORDER.ART.BOTTOM)
+                ),
+                fill=BLACK,
+                width=DRAW_SIZE.BORDER,
+            )
+        elif  face.layout == LayoutType.CLS:
+            pen.line(
+                (
+                    (layoutData.BORDER.ART.RIGHT, layoutData.BORDER.ART.TOP),
+                    (layoutData.BORDER.ART.RIGHT, layoutData.BORDER.ART.BOTTOM)
+                ),
+                fill=BLACK,
+                width=DRAW_SIZE.BORDER,
+            )
+        else:
+            drawStandardRectangle(pen, layoutData, layoutData.BORDER.IMAGE)
+
+
 
         if drawArt:
             drawCardArt(card, frame, layoutData, layoutData.BORDER.TYPE, 40, 8)

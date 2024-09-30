@@ -272,7 +272,6 @@ def drawTitleLine(
     ):
         # Boy I sure hope there will never be acorn AND (dfc / flip) cards
         faceSymbol = f"{FONT_CODE_POINT[card.face_symbol]} "
-
         faceSymbolFont = ImageFont.truetype(TITLE_FONT, size=DRAW_SIZE.TITLE)
         pen.text(
             (
