@@ -171,6 +171,21 @@ def calcLayoutData(
         layoutData.BORDER.RULES.BOTTOM = layoutData.BORDER.RULES.TOP + layoutData.SIZE.RULES.VERT
         layoutData.BORDER.CREDITS = layoutData.BORDER.RULES.BOTTOM
         layoutData.BORDER.IMAGE = layoutData.BORDER.CREDITS + layoutData.SIZE.CREDITS
+
+        layoutData.BORDER.ART.TOP = layoutData.BORDER.CARD.TOP + layoutData.SIZE.TITLE
+        layoutData.BORDER.ART.RIGHT = cardSize.h
+        layoutData.BORDER.ART.BOTTOM = layoutData.BORDER.TYPE
+
+    elif (layoutType == LayoutType.SGA or layoutType == LayoutType.CLS or layoutType == LayoutType.CAS):
+        layoutData.BORDER.TYPE = layoutData.BORDER.CREDITS - layoutData.SIZE.TYPE
+        layoutData.BORDER.ART.TOP = layoutData.BORDER.CARD.TOP + layoutData.SIZE.TITLE
+        layoutData.BORDER.ART.BOTTOM = layoutData.BORDER.TYPE
+
+        if (layoutType == LayoutType.SGA):
+            layoutData.BORDER.ART.RIGHT = cardSize.h
+            layoutData.BORDER.ART.LEFT = cardSize.h // 2
+        else:
+            layoutData.BORDER.ART.RIGHT = cardSize.h // 2
     else:
         # Image size
         layoutData.SIZE.IMAGE = layoutData.SIZE.CARD.VERT - other_sizes
@@ -180,6 +195,10 @@ def calcLayoutData(
         layoutData.BORDER.RULES.TOP = layoutData.BORDER.TYPE + layoutData.SIZE.TYPE
         layoutData.BORDER.RULES.BOTTOM = layoutData.BORDER.RULES.TOP + layoutData.SIZE.RULES.VERT
         layoutData.BORDER.CREDITS = layoutData.BORDER.RULES.BOTTOM
+
+        layoutData.BORDER.ART.TOP = layoutData.BORDER.CARD.TOP + layoutData.SIZE.TITLE
+        layoutData.BORDER.ART.RIGHT = cardSize.h
+        layoutData.BORDER.ART.BOTTOM = layoutData.BORDER.TYPE
 
     
     # Calculating bottom box borders
@@ -230,7 +249,17 @@ def calcLayoutData(
             RIGHT = layoutData.BORDER.CARD.RIGHT,
         )
         layoutData.FONT_MIDDLE.ATTRACTION_H = layoutData.BORDER.ATTRACTION.LEFT +  layoutData.SIZE.ATTRACTION.HORIZ // 2
-
+    elif layoutType == LayoutType.SGA:
+        layoutData.SIZE.RULES.VERT = cardSize.h
+        layoutData.SIZE.RULES.HORIZ = cardSize.h // 2
+        layoutData.BORDER.RULES.TOP = layoutData.BORDER.CARD.TOP + layoutData.SIZE.TITLE
+        layoutData.BORDER.RULES.RIGHT = cardSize.h
+        layoutData.BORDER.IMAGE
+    elif (layoutType == LayoutType.CAS or layoutType == LayoutType.CLS):
+        layoutData.SIZE.RULES.VERT = cardSize.h
+        layoutData.SIZE.RULES.HORIZ = cardSize.h // 2
+        layoutData.BORDER.RULES.TOP = layoutData.BORDER.CARD.TOP + layoutData.SIZE.TITLE
+        layoutData.BORDER.RULES.LEFT = cardSize.h //2
     layoutData.ICON_CENTER = XY(
         h = layoutData.BORDER.CARD.RIGHT - DRAW_SIZE.SEPARATOR - DRAW_SIZE.ICON // 2,
         v = layoutData.BORDER.TYPE + layoutData.SIZE.TYPE // 2,
