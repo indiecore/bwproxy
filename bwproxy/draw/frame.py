@@ -1,4 +1,8 @@
-from PIL import Image, ImageDraw, ImageColor, ImageOps
+import urllib.request 
+from PIL import Image, ImageDraw, ImageColor, ImageOps, ImageFilter, ImageChops, ImageEnhance
+
+import numpy as np
+from pprint import pprint
 
 from ..classes import RGB, XY, LayoutData, LayoutType, ManaColors, FrameColors
 from ..card_wrapper import LayoutCard
@@ -31,6 +35,57 @@ def drawStandardRectangle(pen: ImageDraw.ImageDraw, layout: LayoutData, bottom: 
         width=DRAW_SIZE.BORDER,
     )
 
+def drawCardArt(card:LayoutCard, pen: ImageDraw.Image, layout: LayoutData, bottom: int, threshold: int, blur_factor: int) -> None:
+    url = card.art_crop;
+
+    urllib.request.urlretrieve(url, "tmp-img.png")
+
+    img = Image.open("tmp-img.png")
+
+    grayImg = img.convert("L")
+    
+    grayImg = grayImg.filter(filter=ImageFilter.SMOOTH_MORE)
+    
+    if card.options and card.options.THRESHOLD >= 0:
+        threshold = card.options.THRESHOLD
+
+    thresholded = grayImg.point(lambda p : p > threshold and 255)
+
+    inverted = grayImg.point(lambda i: 255 - i) # invert
+
+    if (card.options and card.options.BLUR >= 0):
+        blur_factor = card.options.BLUR
+
+    blurredImage = inverted.filter(filter=ImageFilter.GaussianBlur(blur_factor))
+
+    result = Image.fromarray(dodge(np.asarray(blurredImage), np.asarray(grayImg)))
+    result = result.filter(filter=ImageFilter.SHARPEN)
+    result = result.filter(filter=ImageFilter.EDGE_ENHANCE)
+
+    result = ImageChops.multiply(thresholded, result)
+
+
+    originalWidthRatio = img.height / img.width
+    originalHeightRatio = img.width / img.height
+
+    imgSpace =  layout.BORDER.ART.BOTTOM - layout.BORDER.ART.TOP
+    imageHeight = imgSpace * originalHeightRatio
+    result = result.resize((round(imageHeight), imgSpace))
+    xOffset = ((layout.BORDER.ART.RIGHT - layout.BORDER.ART.LEFT) - result.width) // 2
+
+    pen.paste(
+        result,
+        (
+            layout.BORDER.ART.LEFT + xOffset, layout.BORDER.ART.TOP
+        )
+    )
+
+def dodge(front, back) -> np.ndarray:
+    result=back*256.0/(256.0-front) 
+    result[result>255]=255
+    result[front==255]=255
+    return result.astype('uint8')
+
 def makeFrameBlack(
     card: LayoutCard
 ) -> Image.Image:
@@ -45,17 +100,49 @@ def makeFrameBlack(
     # Card border
     pen.rectangle(((0, 0), cardSize), outline=BLACK, width=5)
 
+    faceCount = 0;
     for face in card.card_faces:
 
         layoutData = face.layoutData
-
         rotation = layoutData.ROTATION
         if rotation is not None:
             frame = frame.transpose(rotation[0])
 
         pen = ImageDraw.Draw(frame)
 
-        drawStandardRectangle(pen, layoutData, layoutData.BORDER.IMAGE)
+        drawArt = True
+        if (face.isTokenOrEmblem() or face.layout == LayoutType.LND):
+            drawArt = False
+
+        if (drawArt and faceCount > 0 and face.layout == LayoutType.ADV):
+            drawArt = False # We don't want to draw art for the second part of adventure cards.
+
+        if (face.layout == LayoutType.SGA or face.layout == LayoutType.CAS):
+            pen.line(
+                (
+                    (layoutData.BORDER.ART.LEFT, layoutData.BORDER.ART.TOP),
+                    (layoutData.BORDER.ART.LEFT, layoutData.BORDER.ART.BOTTOM)
+                ),
+                fill=BLACK,
+                width=DRAW_SIZE.BORDER,
+            )
+        elif  face.layout == LayoutType.CLS:
+            pen.line(
+                (
+                    (layoutData.BORDER.ART.RIGHT, layoutData.BORDER.ART.TOP),
+                    (layoutData.BORDER.ART.RIGHT, layoutData.BORDER.ART.BOTTOM)
+                ),
+                fill=BLACK,
+                width=DRAW_SIZE.BORDER,
+            )
+        else:
+            drawStandardRectangle(pen, layoutData, layoutData.BORDER.IMAGE)
+
+
+
+        if drawArt:
+            drawCardArt(card, frame, layoutData, layoutData.BORDER.TYPE, 40, 8)
+
         drawStandardRectangle(pen, layoutData, layoutData.BORDER.TYPE)
         drawStandardRectangle(pen, layoutData, layoutData.BORDER.RULES.TOP)
         drawStandardRectangle(pen, layoutData, layoutData.BORDER.CREDITS)
@@ -111,6 +198,8 @@ def makeFrameBlack(
 
         if rotation is not None:
             frame = frame.transpose(rotation[1])
+
+        faceCount += 1
 
     return frame
 

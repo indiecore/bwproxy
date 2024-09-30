@@ -18,15 +18,14 @@ def batchSpacing(
     maxV = pageSize[1] - (cardDistance + (cardSize.v + cardDistance) * batchSize[1])
     return (
         maxH // 2 + cardDistance + (cardSize.h + cardDistance) * (n % batchSize[0]),
-        maxV // 2 + cardDistance + (cardSize.v + cardDistance) * (n // batchSize[0]),
+        maxH // 2 + cardDistance + (cardSize.v + cardDistance) * (n // batchSize[0]),
     )
-
 
 def paginate(
     images: List[Image.Image],
     cardSize: XY,
     small: bool = False,
-    pageFormat: PageFormat = PageFormat.A4,
+    pageFormat: PageFormat = PageFormat.LETTER,
     noCardSpace: bool = False,
 ) -> List[Image.Image]:
 

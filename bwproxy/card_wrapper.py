@@ -5,7 +5,7 @@ from scrython import Named
 from copy import deepcopy
 import re
 
-from .classes import LayoutType, LayoutData, ManaColors, JsonDict
+from .classes import LayoutType, LayoutData, ManaColors, JsonDict, CardOptions
 from .other_constants import VERSION, ACORN_PLAINTEXT, BASIC_LANDS, LAYOUT_TYPES_DF
 from .dimensions import LAYOUT_DATA
 
@@ -45,7 +45,6 @@ class Card:
         # Setting info for Emblem and Tokens
         if "Emblem" in self.type_line:
             self.data["name"] = self.data["name"].replace(" Emblem", "")
-
 
     def _hasKey(self, attr: str) -> bool:
         """
@@ -136,6 +135,17 @@ class Card:
     @property
     def defense(self) -> str:
         return self._getKey("defense")
+    
+    @property
+    def art_crop(self) -> str:
+        if self._hasKey("image_uris") and "art_crop" in self.data["image_uris"]:
+            return self.data["image_uris"]["art_crop"]
+        else:
+            return ""
+    
+    @property
+    def artist(self) -> str:
+        return self._getKey("artist")
 
     @property
     def layout(self) -> LayoutType:
@@ -351,13 +361,20 @@ class LayoutCard(Card):
         alternativeFrames: bool = False,
         flavorName: str | None = None,
         isPlaytest: bool = False,
+        options:CardOptions = None,
     ) -> Self:
-        named: Named = Named(fuzzy=name)
+        set = ""
+
+        if (options):
+            set = options.SET
+
+        named: Named = Named(fuzzy=name, set=set)
         return LayoutCard(
             named,
             alternativeFrames,
             flavorName,
             isPlaytest,
+            options,
         )
 
     def __init__(
@@ -366,11 +383,13 @@ class LayoutCard(Card):
         alternativeFrames: bool = False,
         flavorName: str | None = None,
         isPlaytest: bool = False,
+        options:CardOptions=None
     ):
         super().__init__(card)
         self.__flavorName = flavorName
         self.__alternativeFrames = alternativeFrames
         self.__isPlaytest = isPlaytest
+        self.options = options
     
     @property
     def layout(self) -> LayoutType:
@@ -404,7 +423,8 @@ class LayoutCard(Card):
                     face,
                     self.__alternativeFrames,
                     flavorName = None,
-                    isPlaytest = self.__isPlaytest 
+                    isPlaytest = self.__isPlaytest,
+                    options=self.options 
                 )
                 for face in super().card_faces
             ]

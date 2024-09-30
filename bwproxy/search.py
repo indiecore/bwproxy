@@ -1,4 +1,7 @@
 from __future__ import annotations
+from time import sleep
+from pprint import pprint
+
 from typing import List, Optional, Dict, Tuple
 from scrython import Search, ScryfallError
 from pathlib import Path
@@ -7,10 +10,9 @@ import re
 import os
 import json
 
-from .classes import LayoutType, ManaColors, JsonDict # type: ignore
+from .classes import LayoutType, ManaColors, JsonDict, CardOptions # type: ignore
 from .card_wrapper import Card, LayoutCard
 from .other_constants import CARD_TYPES, CARD_SUPERTYPES, BASIC_LANDS, LAYOUT_TYPES_DF
-
 
 # Cards and Tokens/Emblems have different caches, since there are cards with the same name as tokens
 # Notable example: Blood token and Flesh // Blood
@@ -54,18 +56,23 @@ def deduplicateTokenResults(query: str, results: list[Card]) -> list[Card]:
     return list(deduplicatedList.values())
 
 
-def searchToken(tokenName: str, tokenType: str = LayoutType.TOK.value) -> list[Card]:
+def searchToken(tokenName: str, setCode:str="", tokenType: str = LayoutType.TOK.value) -> list[Card]:
     """
     Searches a token/emblem info based on their name.
     Returns a list of deduplicated tokens corresponding to the name,
     or the empty list if no tokens were found.
     """
+    print("In Search Token for " + tokenName)
     if tokenType == LayoutType.EMB.value:
         exactName = f"{tokenName} Emblem"
     else:
         exactName = tokenName
     try:
-        cardQuery = Search(q=f"type:{tokenType} !'{exactName}'")
+        query = f"type:{tokenType} !'{exactName}'"
+        if (setCode):
+            query += f"set:{setCode}"
+        print(query)
+        cardQuery = Search(q=query)
         results = [Card(cardData) for cardData in cardQuery.data()]  # type: ignore
     except ScryfallError:
         try:
@@ -216,7 +223,34 @@ def loadCards(
 
     for origLine in requestedCards.split("\n"):
         line = origLine
+
+        comments = commentsRegex.findall(line);
+
+        # Check for option setting in line ending comments.
+        set = ""
+        threshold = -1;
+        blur = -1;
+        if (comments):
+            setRegex = re.compile(r"set\s*=\s*([\S]+)\s?")
+            thresholdRegex = re.compile(r"threshold\s*=\s*([0-9]*)\s?");
+            blurRegex = re.compile(r"blur\s*=\s*([0-9]*)\s?");
+
+            setCode = setRegex.findall(comments[0])
+            if (setCode):
+                set = setCode[0]
+
+            thresholdAmount = thresholdRegex.findall(comments[0])
+            if (thresholdAmount):
+                threshold = int(thresholdAmount[0]);
+            
+            blurAmount = blurRegex.findall(comments[0]) 
+            if (blurAmount):
+                blur = int(blurAmount[0])
+        
+        options = CardOptions(threshold=threshold, blurKernel=blur, set=set)
+            
         line = commentsRegex.sub("", line)
+
         line = doubleSpacesRegex.sub(" ", line.strip())
 
         if line == "":
@@ -239,6 +273,9 @@ def loadCards(
 
         if line:
             cardName = line
+            cacheName=cardName;
+            if options.SET:
+                cacheName += options.SET;
         else:
             print(f"No card name found in line {origLine}. This line will be skipped.")
             continue
@@ -264,11 +301,13 @@ def loadCards(
                     print(f"Line '{origLine}' contains a {tokenType}, but the info specified was not formatted correctly.")
                     continue
             # Token is a named token
-            elif cardName in tokenCache:
-                tokenData = Card(tokenCache[cardName])
+            elif cacheName in tokenCache:
+                tokenData = Card(tokenCache[cacheName])
             else:
-                print(f"{cardName} not in cache. searching...")
-                tokenList = searchToken(tokenName=cardName, tokenType=tokenType)
+                print(f"{cacheName} not in cache. searching...")
+                tokenList = searchToken(tokenName=cardName, setCode=options.SET, tokenType=tokenType)
+
+                sleep(0.1)
 
                 if len(tokenList) == 0:
                     print(f"Skipping {cardName}. No corresponding tokens found.")
@@ -281,13 +320,14 @@ def loadCards(
                 tokenData = tokenList[0]
                 print(f"Token {tokenData.name} found!")
 
-            tokenCache[cardName] = tokenData.data
+            tokenCache[cacheName] = tokenData.data
             cardsInDeck.append(
                 (
                     LayoutCard(
                         tokenData.data,
                         alternativeFrames,
                         isPlaytest=usePlaytestSize,
+                        options=options,
                     ),
                     cardCount
                 )
@@ -301,28 +341,30 @@ def loadCards(
         else:
             flavorName = None
 
-        if cardName in cardCache:
+        if cacheName in cardCache:
             cardData = LayoutCard(
-                cardCache[cardName],
+                cardCache[cacheName],
                 alternativeFrames,
                 flavorName,
                 isPlaytest=usePlaytestSize,
+                options=options,
             )
         else:
-            print(f"{cardName} not in cache. searching...")
+            print(f"{cacheName} not in cache. searching...")
             try:
                 cardData = LayoutCard.from_name(
                     cardName,
                     alternativeFrames,
                     flavorName,
                     isPlaytest=usePlaytestSize,
+                    options=options,
                 )
             except ScryfallError as err:
                 print(f"Skipping {cardName}. {err}")
                 continue
             print(f"Card {cardData.name} found!")
 
-        cardCache[cardName] = cardData.data
+        cardCache[cacheName] = cardData.data
 
         if cardData.layout in LAYOUT_TYPES_DF:
             for face in cardData.card_faces:
