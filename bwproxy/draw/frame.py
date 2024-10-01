@@ -71,6 +71,7 @@ def drawCardArt(card:LayoutCard, pen: ImageDraw.Image, layout: LayoutData, botto
     imgSpace =  layout.BORDER.ART.BOTTOM - layout.BORDER.ART.TOP
     imageHeight = imgSpace * originalHeightRatio
     result = result.resize((round(imageHeight), imgSpace))
+
     xOffset = ((layout.BORDER.ART.RIGHT - layout.BORDER.ART.LEFT) - result.width) // 2
 
     pen.paste(
@@ -114,10 +115,10 @@ def makeFrameBlack(
         if (face.isTokenOrEmblem() or face.layout == LayoutType.LND):
             drawArt = False
 
-        if (drawArt and faceCount > 0 and face.layout == LayoutType.ADV):
+        if drawArt and faceCount > 0 and (face.layout == LayoutType.ADV or face.layout == LayoutType.FLP):
             drawArt = False # We don't want to draw art for the second part of adventure cards.
 
-        if (face.layout == LayoutType.SGA or face.layout == LayoutType.CAS):
+        if (face.layout == LayoutType.SGA):
             pen.line(
                 (
                     (layoutData.BORDER.ART.LEFT, layoutData.BORDER.ART.TOP),
@@ -126,7 +127,7 @@ def makeFrameBlack(
                 fill=BLACK,
                 width=DRAW_SIZE.BORDER,
             )
-        elif  face.layout == LayoutType.CLS:
+        elif (face.layout == LayoutType.CLS  or face.layout == LayoutType.CAS):
             pen.line(
                 (
                     (layoutData.BORDER.ART.RIGHT, layoutData.BORDER.ART.TOP),
