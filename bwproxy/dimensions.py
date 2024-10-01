@@ -133,7 +133,7 @@ def calcLayoutData(
             layoutData.SIZE.CREDITS = 0
 
     elif layoutType == LayoutType.FLP:
-        layoutData.SIZE.RULES.VERT = 200
+        layoutData.SIZE.RULES.VERT = 125
         if (part == 1):
             layoutData.ROTATION = (Image.ROTATE_180, Image.ROTATE_180)
 
@@ -172,9 +172,9 @@ def calcLayoutData(
         layoutData.BORDER.CREDITS = layoutData.BORDER.RULES.BOTTOM
         layoutData.BORDER.IMAGE = layoutData.BORDER.CREDITS + layoutData.SIZE.CREDITS
 
-        layoutData.BORDER.ART.TOP = layoutData.BORDER.CARD.TOP + layoutData.SIZE.TITLE
+        layoutData.BORDER.ART.TOP = layoutData.BORDER.CREDITS + layoutData.SIZE.CREDITS
         layoutData.BORDER.ART.RIGHT = cardSize.h
-        layoutData.BORDER.ART.BOTTOM = layoutData.BORDER.TYPE
+        layoutData.BORDER.ART.BOTTOM = layoutData.BORDER.ART.TOP + layoutData.SIZE.IMAGE
 
     elif (layoutType == LayoutType.SGA or layoutType == LayoutType.CLS or layoutType == LayoutType.CAS):
         layoutData.BORDER.TYPE = layoutData.BORDER.CREDITS - layoutData.SIZE.TYPE
